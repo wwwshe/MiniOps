@@ -32,6 +32,10 @@ public final class APIRouter {
             return .json(makeSettingsResponse())
         case ("PATCH", "/api/v1/settings"):
             return updateSettings(request: request)
+        case ("POST", "/api/v1/settings"):
+            return updateSettings(request: request)
+        case ("PUT", "/api/v1/settings"):
+            return updateSettings(request: request)
         default:
             return .notFound()
         }

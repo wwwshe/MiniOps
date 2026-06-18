@@ -63,13 +63,12 @@ public final class HTTPServer {
     private func handle(connection: NWConnection) async {
         connection.start(queue: .global(qos: .userInitiated))
 
-        guard let requestData = await readRequest(from: connection),
-              let requestString = String(data: requestData, encoding: .utf8) else {
+        guard let requestData = await readRequest(from: connection) else {
             connection.cancel()
             return
         }
 
-        let request = parseRequest(requestString)
+        let request = parseRequest(from: requestData)
         let response = router.route(request: request)
         let responseData = buildHTTPResponse(response)
 
@@ -80,22 +79,79 @@ public final class HTTPServer {
 
     private func readRequest(from connection: NWConnection) async -> Data? {
         await withCheckedContinuation { continuation in
-            connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) { data, _, _, error in
-                if let error {
-                    print("MiniOps API: receive error — \(error)")
-                    continuation.resume(returning: nil)
-                    return
+            var buffer = Data()
+
+            func receiveNext() {
+                connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) { data, _, isComplete, error in
+                    if let error {
+                        print("MiniOps API: receive error — \(error)")
+                        continuation.resume(returning: nil)
+                        return
+                    }
+
+                    if let data {
+                        buffer.append(data)
+                    }
+
+                    if Self.hasCompleteHTTPMessage(buffer) {
+                        continuation.resume(returning: buffer)
+                        return
+                    }
+
+                    if isComplete {
+                        continuation.resume(returning: buffer.isEmpty ? nil : buffer)
+                        return
+                    }
+
+                    receiveNext()
                 }
-                continuation.resume(returning: data)
             }
+
+            receiveNext()
         }
     }
 
-    private func parseRequest(_ raw: String) -> HTTPRequest {
-        let (headerSection, bodySection) = Self.splitHeadersAndBody(raw)
-        let headerLines = headerSection.components(separatedBy: "\r\n")
+    private static func hasCompleteHTTPMessage(_ buffer: Data) -> Bool {
+        guard let headerEnd = buffer.range(of: Data("\r\n\r\n".utf8))
+                ?? buffer.range(of: Data("\n\n".utf8)) else {
+            return false
+        }
 
-        guard let requestLine = headerLines.first else {
+        let headerData = buffer[..<headerEnd.lowerBound]
+        guard let headerString = String(data: headerData, encoding: .utf8) else {
+            return false
+        }
+
+        let expectedBodyLength = contentLength(from: headerString)
+        let bodyStart = headerEnd.upperBound
+        return buffer.count - bodyStart >= expectedBodyLength
+    }
+
+    private static func contentLength(from headerSection: String) -> Int {
+        let lines = headerSection
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .components(separatedBy: "\n")
+
+        for line in lines {
+            let lower = line.lowercased()
+            guard lower.hasPrefix("content-length:") else { continue }
+            let value = lower.dropFirst("content-length:".count)
+                .trimmingCharacters(in: .whitespaces)
+            return max(Int(value) ?? 0, 0)
+        }
+        return 0
+    }
+
+    private func parseRequest(from data: Data) -> HTTPRequest {
+        guard let headerEnd = data.range(of: Data("\r\n\r\n".utf8))
+                ?? data.range(of: Data("\n\n".utf8)),
+              let headerString = String(data: data[..<headerEnd.lowerBound], encoding: .utf8) else {
+            return HTTPRequest(method: "GET", path: "/", headers: [:], body: Data())
+        }
+
+        let headerLines = headerString.components(separatedBy: "\r\n")
+
+        guard let requestLine = headerLines.first, !requestLine.isEmpty else {
             return HTTPRequest(method: "GET", path: "/", headers: [:], body: Data())
         }
 
@@ -112,22 +168,13 @@ public final class HTTPServer {
             headers[key] = value
         }
 
-        var body = Data(bodySection.utf8)
-        if let contentLength = headers["content-length"], let length = Int(contentLength), length >= 0 {
-            body = body.prefix(length)
+        let expectedBodyLength = Self.contentLength(from: headerString)
+        var body = data[headerEnd.upperBound...]
+        if expectedBodyLength > 0 {
+            body = body.prefix(expectedBodyLength)
         }
 
-        return HTTPRequest(method: method, path: path, headers: headers, body: body)
-    }
-
-    private static func splitHeadersAndBody(_ raw: String) -> (headerSection: String, bodySection: String) {
-        if let range = raw.range(of: "\r\n\r\n") {
-            return (String(raw[..<range.lowerBound]), String(raw[range.upperBound...]))
-        }
-        if let range = raw.range(of: "\n\n") {
-            return (String(raw[..<range.lowerBound]), String(raw[range.upperBound...]))
-        }
-        return (raw, "")
+        return HTTPRequest(method: method, path: path, headers: headers, body: Data(body))
     }
 
     private func buildHTTPResponse(_ response: HTTPResponse) -> Data {
