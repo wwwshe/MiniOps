@@ -16,6 +16,10 @@ public enum RemoteAPIURL {
 
         guard var components = URLComponents(string: trimmed) else { return nil }
 
+        if let host = components.host, !isUsableHost(host) {
+            return nil
+        }
+
         if components.scheme == "https", isLocalNetworkHost(components.host) {
             components.scheme = "http"
         }
@@ -54,5 +58,13 @@ public enum RemoteAPIURL {
         }
 
         return false
+    }
+
+    private static func isUsableHost(_ host: String) -> Bool {
+        let lower = host.lowercased()
+        if lower.contains("%") || lower.hasPrefix("fe80:") || lower.hasPrefix("fe80::") {
+            return false
+        }
+        return true
     }
 }

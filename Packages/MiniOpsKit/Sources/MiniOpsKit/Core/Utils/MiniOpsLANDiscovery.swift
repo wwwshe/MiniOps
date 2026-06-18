@@ -59,16 +59,24 @@ public final class MiniOpsServerBrowser {
                     guard case .service(let name, _, _, _) = result.endpoint else { continue }
 
                     Task {
-                        guard let resolved = await Self.resolve(endpoint: result.endpoint) else { return }
-                        let baseURL = "http://\(resolved.host):\(resolved.port)"
+                        guard let resolved = await Self.resolve(endpoint: result.endpoint),
+                              let baseURL = Self.buildBaseURL(host: resolved.host, port: resolved.port) else {
+                            return
+                        }
+
                         let server = DiscoveredMiniOpsServer(
-                            id: "\(name)-\(baseURL)",
+                            id: name,
                             name: name,
                             baseURL: baseURL
                         )
 
                         lock.lock()
-                        if !servers.contains(server) {
+                        if let index = servers.firstIndex(where: { $0.id == name }) {
+                            let existing = servers[index]
+                            if Self.hostPriority(resolved.host) > Self.hostPriority(Self.hostFromBaseURL(existing.baseURL)) {
+                                servers[index] = server
+                            }
+                        } else {
                             servers.append(server)
                         }
                         lock.unlock()
@@ -82,8 +90,28 @@ public final class MiniOpsServerBrowser {
     }
 
     private static func resolve(endpoint: NWEndpoint) async -> (host: String, port: Int)? {
+        if let ipv4 = await resolve(endpoint: endpoint, preferIPv4: true),
+           isUsableLANHost(ipv4.host) {
+            return ipv4
+        }
+
+        if let fallback = await resolve(endpoint: endpoint, preferIPv4: false),
+           isUsableLANHost(fallback.host) {
+            return fallback
+        }
+
+        return nil
+    }
+
+    private static func resolve(endpoint: NWEndpoint, preferIPv4: Bool) async -> (host: String, port: Int)? {
         await withCheckedContinuation { continuation in
-            let connection = NWConnection(to: endpoint, using: .tcp)
+            let parameters = NWParameters.tcp
+            if preferIPv4,
+               let ipOptions = parameters.defaultProtocolStack.internetProtocol as? NWProtocolIP.Options {
+                ipOptions.version = .v4
+            }
+
+            let connection = NWConnection(to: endpoint, using: parameters)
             var finished = false
 
             connection.stateUpdateHandler = { state in
@@ -118,9 +146,53 @@ public final class MiniOpsServerBrowser {
         case .ipv6(let address):
             return "\(address)"
         case .name(let name, _):
-            return name
+            return name.hasSuffix(".") ? String(name.dropLast()) : name
         @unknown default:
             return "\(host)"
         }
+    }
+
+    private static func isUsableLANHost(_ host: String) -> Bool {
+        let lower = host.lowercased()
+
+        if lower.contains("%") {
+            return false
+        }
+
+        if lower.hasPrefix("fe80:") || lower.hasPrefix("fe80::") {
+            return false
+        }
+
+        if lower.hasSuffix(".local") {
+            return true
+        }
+
+        return RemoteAPIURL.isLocalNetworkHost(host)
+    }
+
+    private static func buildBaseURL(host: String, port: Int) -> String? {
+        guard isUsableLANHost(host) else { return nil }
+
+        if host.contains(":") {
+            return "http://[\(host)]:\(port)"
+        }
+
+        return "http://\(host):\(port)"
+    }
+
+    private static func hostFromBaseURL(_ baseURL: String) -> String {
+        guard let components = URLComponents(string: baseURL) else { return "" }
+        return components.host ?? ""
+    }
+
+    private static func hostPriority(_ host: String) -> Int {
+        let lower = host.lowercased()
+        if lower.split(separator: ".").count == 4, !lower.contains(":") {
+            return 3
+        }
+        if lower.hasSuffix(".local") {
+            return 2
+        }
+        return 1
     }
 }
