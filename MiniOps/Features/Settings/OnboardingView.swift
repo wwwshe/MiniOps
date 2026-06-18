@@ -10,7 +10,6 @@ struct OnboardingView: View {
     var onComplete: () -> Void
 
     @State private var step = 0
-    @State private var pasteText = ""
     @State private var remoteDockerPath = ""
     @State private var statusMessage: String?
     @State private var isWorking = false
@@ -105,22 +104,6 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("API Token")
                 .font(.headline)
-
-            Text("맥미니에서 `miniopsd --print-config` 출력을 붙여넣으면 URL과 Token을 자동으로 채웁니다.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            TextEditor(text: $pasteText)
-                .font(.system(.caption, design: .monospaced))
-                .frame(height: 100)
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
-
-            Button("붙여넣기에서 가져오기") {
-                let parsed = ServerConfigPasteParser.parse(pasteText)
-                if let url = parsed.url { settings.remoteServerBaseURL = url }
-                if let token = parsed.token { settings.remoteServerToken = token }
-                statusMessage = parsed.url != nil || parsed.token != nil ? "✓ 설정을 가져왔습니다." : "✗ lan_url 또는 api_token을 찾지 못했습니다."
-            }
 
             SecureField("API Token", text: $settings.remoteServerToken)
                 .textFieldStyle(.roundedBorder)

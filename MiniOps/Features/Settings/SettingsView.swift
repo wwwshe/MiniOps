@@ -14,7 +14,6 @@ struct SettingsView: View {
     @State private var discoveryMessageKind: DiscoveryMessageKind = .idle
     @State private var remoteDockerPath: String = ""
     @State private var remoteDockerStatus: String?
-    @State private var configPasteText = ""
     @State private var healthCheckTargets: [APIHealthCheckTargetItem] = []
     @State private var healthCheckStatus: String?
     @State private var showAddHealthCheck = false
@@ -57,18 +56,6 @@ struct SettingsView: View {
                 Text("맥미니(miniopsd) API에 연결합니다. Token은 맥미니에서 `miniopsd --print-config`로 확인하세요.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            }
-
-            Section("설정 붙여넣기") {
-                TextEditor(text: $configPasteText)
-                    .font(.system(.caption, design: .monospaced))
-                    .frame(height: 80)
-                Button("miniopsd --print-config에서 가져오기") {
-                    let parsed = ServerConfigPasteParser.parse(configPasteText)
-                    if let url = parsed.url { settings.remoteServerBaseURL = url }
-                    if let token = parsed.token { settings.remoteServerToken = token }
-                    connectionTestResult = parsed.url != nil || parsed.token != nil ? "✓ URL/Token 적용됨" : "✗ lan_url 또는 api_token 없음"
-                }
             }
 
             Section("원격 서버 (같은 Wi‑Fi)") {
@@ -169,42 +156,67 @@ struct SettingsView: View {
     }
 
     private var healthCheckTab: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Health Check는 맥미니 서버에서 실행됩니다. 여기서 등록하면 서버에 저장됩니다.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            HStack {
-                Text("등록된 Health Check")
-                    .font(.headline)
-                Spacer()
-                Button("새로고침") { Task { await loadHealthChecks() } }
-                Button("추가") { showAddHealthCheck = true }
-            }
-
-            if let healthCheckStatus {
-                Text(healthCheckStatus)
+        Form {
+            Section {
+                Text("맥미니 서버에서 주기적으로 외부 URL을 체크합니다. 실패 시 알림을 받을 수 있습니다.")
                     .font(.caption)
-                    .foregroundStyle(healthCheckStatus.hasPrefix("✓") ? .green : .red)
+                    .foregroundStyle(.secondary)
             }
 
-            if healthCheckTargets.isEmpty {
-                ContentUnavailableView("Health Check 없음", systemImage: "heart.slash")
-            } else {
-                List {
+            Section {
+                if healthCheckTargets.isEmpty {
+                    ContentUnavailableView("등록된 Health Check 없음", systemImage: "heart.slash")
+                        .frame(maxWidth: .infinity)
+                } else {
                     ForEach(healthCheckTargets, id: \.id) { target in
-                        HStack {
-                            VStack(alignment: .leading) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "circle.fill")
+                                .font(.system(size: 8))
+                                .foregroundStyle(.green)
+                            VStack(alignment: .leading, spacing: 2) {
                                 Text(target.name).font(.body.weight(.medium))
                                 Text(target.url).font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
-                            Button("삭제") { Task { await deleteHealthCheck(id: target.id) } }
+                            Text("매 \(target.intervalSeconds)초")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Button {
+                                editingTarget = target.asHealthCheckTarget
+                            } label: {
+                                Image(systemName: "pencil")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            Button(role: .destructive) {
+                                Task { await deleteHealthCheck(id: target.id) }
+                            } label: {
+                                Image(systemName: "trash")
+                                    .foregroundStyle(.red)
+                            }
+                            .buttonStyle(.plain)
                         }
+                        .padding(.vertical, 2)
                     }
+                }
+            } header: {
+                HStack {
+                    Text("등록된 Health Check")
+                    Spacer()
+                    Button("새로고침") { Task { await loadHealthChecks() } }
+                        .font(.caption)
+                    Button("추가") { showAddHealthCheck = true }
+                        .font(.caption)
+                }
+            } footer: {
+                if let healthCheckStatus, healthCheckStatus.hasPrefix("✗") {
+                    Text(healthCheckStatus)
+                        .font(.caption)
+                        .foregroundStyle(.red)
                 }
             }
         }
+        .formStyle(.grouped)
         .padding()
         .task { await loadHealthChecks() }
     }
@@ -346,6 +358,7 @@ struct SettingsView: View {
     private func addHealthCheck(_ target: HealthCheckTarget) async {
         let baseURL = settings.remoteServerBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let token = settings.remoteServerToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        let client = RemoteSettingsClient()
         let item = APIHealthCheckTargetItem(
             id: target.id.uuidString,
             name: target.name,
@@ -356,7 +369,11 @@ struct SettingsView: View {
         )
 
         do {
-            let response = try await RemoteSettingsClient().addHealthCheckTarget(baseURL: baseURL, token: token, target: item)
+            // 기존 항목이면 먼저 삭제 후 재등록 (서버에 update API 없음)
+            if healthCheckTargets.contains(where: { $0.id == target.id.uuidString }) {
+                _ = try await client.deleteHealthCheckTarget(baseURL: baseURL, token: token, id: target.id)
+            }
+            let response = try await client.addHealthCheckTarget(baseURL: baseURL, token: token, target: item)
             healthCheckTargets = response.targets
             healthCheckStatus = "✓ Health Check 저장됨"
             onMonitoringRestart()

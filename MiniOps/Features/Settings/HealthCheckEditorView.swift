@@ -34,7 +34,7 @@ struct HealthCheckEditorView: View {
             TextField("이름", text: $name)
                 .textFieldStyle(.roundedBorder)
 
-            TextField("URL", text: $urlString)
+            TextField("URL", text: $urlString, prompt: Text("https://example.com/health"))
                 .textFieldStyle(.roundedBorder)
 
             Stepper("간격: \(intervalSeconds)초", value: $intervalSeconds, in: 5...3600, step: 5)

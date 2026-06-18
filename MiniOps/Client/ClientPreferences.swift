@@ -1,4 +1,5 @@
 import Foundation
+import MiniOpsKit
 import Observation
 
 @Observable
@@ -56,24 +57,19 @@ final class ClientPreferences {
     }
 }
 
-enum ServerConfigPasteParser {
-    static func parse(_ text: String) -> (url: String?, token: String?) {
-        var url: String?
-        var token: String?
-
-        for rawLine in text.split(whereSeparator: \.isNewline) {
-            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
-            if line.hasPrefix("lan_url:") {
-                url = line.replacingOccurrences(of: "lan_url:", with: "").trimmingCharacters(in: .whitespaces)
-            } else if line.hasPrefix("api_token:") {
-                token = line.replacingOccurrences(of: "api_token:", with: "").trimmingCharacters(in: .whitespaces)
-            }
-        }
-
-        return (url, token)
-    }
-}
-
 extension Notification.Name {
     static let openMiniOpsSettings = Notification.Name("openMiniOpsSettings")
+}
+
+extension APIHealthCheckTargetItem {
+    var asHealthCheckTarget: HealthCheckTarget {
+        HealthCheckTarget(
+            id: UUID(uuidString: id) ?? UUID(),
+            name: name,
+            urlString: url,
+            intervalSeconds: intervalSeconds,
+            timeoutSeconds: timeoutSeconds,
+            expectedStatusCode: expectedStatusCode
+        )
+    }
 }
