@@ -8,6 +8,7 @@ MiniOps는 Mac Mini에서 로컬 HTTP API를 제공합니다. **같은 Wi‑Fi( 
 
 ```bash
 brew tap wwwshe/miniops https://github.com/wwwshe/MiniOps.git
+brew trust wwwshe/miniops
 brew install miniops
 brew services start miniops
 miniopsd --print-config

@@ -67,6 +67,7 @@ struct MiniOpsDaemonMain {
 
         Install as service:
           brew tap wwwshe/miniops https://github.com/wwwshe/MiniOps.git
+          brew trust wwwshe/miniops
           brew install miniops
           brew services start miniops
         """)

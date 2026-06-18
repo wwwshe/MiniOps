@@ -9,6 +9,7 @@ GUI 없이 Mac Mini에서 MiniOps 에이전트를 실행하는 방법입니다.
 ```bash
 # GitHub 저장소를 tap으로 등록 후 설치 (저장소 클론 불필요)
 brew tap wwwshe/miniops https://github.com/wwwshe/MiniOps.git
+brew trust wwwshe/miniops
 brew install miniops
 
 # 백그라운드 서비스 시작
@@ -40,6 +41,19 @@ Error: Homebrew requires formulae to be in a tap, rejecting:
 ```
 
 위 **tap** 방식(`brew tap wwwshe/miniops ...`)을 사용하세요.
+
+### `untrusted tap` 오류
+
+```
+Error: Refusing to load formula wwwshe/miniops/miniops from untrusted tap wwwshe/miniops.
+```
+
+최신 Homebrew는 비공식 tap을 한 번 신뢰해야 설치할 수 있습니다.
+
+```bash
+brew trust wwwshe/miniops
+brew install miniops
+```
 
 ### 요구 사항
 
