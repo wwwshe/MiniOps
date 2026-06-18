@@ -4,7 +4,12 @@ AI 기반 Mac Mini 서버 모니터링 및 복구 도구
 
 MiniOps는 Mac Mini 홈서버 운영자를 위한 AI 기반 운영 도우미입니다. CPU, 메모리, Docker 상태를 모니터링하고 Health Check를 수행합니다. 같은 Wi‑Fi(LAN)에서 HTTP API로 상태를 조회할 수 있습니다.
 
-## v0.5 기능 (현재)
+## 스크린샷
+
+![메뉴바](screenshots/menubar.png)
+![대시보드](screenshots/dashboard.png)
+
+## v1.0.1 기능 (현재)
 
 - **miniopsd** — GUI 없는 서버 에이전트 (Homebrew 설치 가능)
 - **메뉴바 앱** — 같은 Wi‑Fi의 다른 Mac에서 서버 상태 조회 (클라이언트 전용)
