@@ -74,10 +74,11 @@ MiniOps/
 | v0.1 | 메뉴바 + Health Check + LAN API |
 | v0.1.5 | 온보딩, 알림, Docker 제어, 메트릭 히스토리, UX 개선 |
 | v0.2 | 로그 수집·보관, Health Check 편집 |
-| **v0.3** | **Docker 로그 에러/경고 패턴 감지 및 알림** |
-| v0.4 | 컨테이너별 CPU/Memory (`docker stats`) |
-| v0.5 | Slack / Discord 알림 |
-| v0.6 | iOS/iPad 조회 앱 (선택) |
+| v0.3 | Docker 로그 에러/경고 패턴 감지 및 알림 |
+| **v0.4** | **컨테이너별 CPU/Memory (`docker stats`)** |
+| v1.0 | brew 및 mac release 배포 |
+| v1.1 | Slack / Discord 알림 |
+| v1.2 | iOS/iPad 조회 앱 (선택) |
 
 ## 라이선스
 
