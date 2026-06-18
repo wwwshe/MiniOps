@@ -42,7 +42,10 @@ public final class APIRouter {
     }
 
     private func makeSettingsResponse() -> APISettingsResponse {
-        APISettingsResponse(dockerPath: settings.dockerPath)
+        APISettingsResponse(
+            dockerPath: settings.dockerPath,
+            detectedDockerPath: DockerPathDetector.detect()
+        )
     }
 
     private func updateSettings(request: HTTPRequest) -> HTTPResponse {
@@ -212,6 +215,12 @@ public struct APIHealthCheckItem: Codable {
 
 public struct APISettingsResponse: Codable, Sendable {
     public let dockerPath: String
+    public let detectedDockerPath: String?
+
+    public init(dockerPath: String, detectedDockerPath: String?) {
+        self.dockerPath = dockerPath
+        self.detectedDockerPath = detectedDockerPath
+    }
 }
 
 public struct APISettingsPatch: Codable, Sendable {

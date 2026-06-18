@@ -139,7 +139,7 @@ struct SettingsView: View {
                 .onChange(of: settings.remoteServerToken) { _, _ in onMonitoringRestart() }
 
                 Section("원격 서버 Docker") {
-                    Text("메뉴바의 Docker 상태는 맥미니 서버 기준입니다. **불러오기**는 서버에 저장된 경로를 표시할 뿐이며, 경로를 바꾼 뒤 **서버에 저장**해야 반영됩니다.")
+                    Text("불러오기는 맥미니 서버에서 docker CLI 경로를 찾습니다(which). 찾은 뒤 서버에 저장하면 모니터링에 반영됩니다.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -175,6 +175,12 @@ struct SettingsView: View {
                 Section("Docker") {
                     TextField("Docker CLI 경로", text: $settings.dockerPath)
                         .textFieldStyle(.roundedBorder)
+
+                    Button("경로 찾기") {
+                        if let path = DockerPathDetector.detect() {
+                            settings.dockerPath = path
+                        }
+                    }
                 }
             }
         }
@@ -314,9 +320,17 @@ struct SettingsView: View {
         let client = RemoteSettingsClient()
         do {
             let response = try await client.fetchSettings(baseURL: baseURL, token: token)
-            remoteDockerPath = response.dockerPath
-            if !silent {
-                remoteDockerStatus = "✓ 서버 설정을 불러왔습니다."
+
+            if let detected = response.detectedDockerPath, !detected.isEmpty {
+                remoteDockerPath = detected
+                if !silent {
+                    remoteDockerStatus = "✓ 서버에서 docker를 찾았습니다: \(detected)"
+                }
+            } else {
+                remoteDockerPath = response.dockerPath
+                if !silent {
+                    remoteDockerStatus = "✗ 서버에서 docker를 찾지 못했습니다. Docker Desktop 실행 여부를 확인하세요."
+                }
             }
         } catch {
             if !silent {
