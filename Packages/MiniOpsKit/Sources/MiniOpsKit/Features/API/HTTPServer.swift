@@ -25,7 +25,11 @@ public final class HTTPServer {
             parameters.allowLocalEndpointReuse = true
             listener = try NWListener(using: parameters, on: NWEndpoint.Port(integerLiteral: UInt16(settings.apiPort)))
             let serviceName = Host.current().localizedName ?? "MiniOps"
-            listener?.service = NWListener.Service(name: serviceName, type: MiniOpsBonjour.serviceType)
+            listener?.service = NWListener.Service(
+                name: serviceName,
+                type: MiniOpsBonjour.serviceType,
+                txtRecord: MiniOpsBonjour.txtRecord(port: settings.apiPort)
+            )
         } catch {
             print("MiniOps API: failed to create listener — \(error)")
             return

@@ -240,18 +240,20 @@ struct SettingsView: View {
 
     private func discoverServers() async {
         isDiscovering = true
+        connectionTestResult = "같은 Wi‑Fi에서 서버를 찾는 중…"
         defer { isDiscovering = false }
 
         let browser = MiniOpsServerBrowser()
-        let servers = await browser.discover()
+        let servers = await browser.discover(port: 8787)
         discoveredServers = servers
 
         if servers.count == 1, let server = servers.first {
             selectDiscoveredServer(server.baseURL)
+            connectionTestResult = "✓ 서버 발견: \(server.baseURL)"
         } else if servers.isEmpty {
-            connectionTestResult = "✗ 서버를 찾지 못했습니다. 맥미니 miniopsd 업그레이드·재시작, 로컬 네트워크 권한을 확인하세요."
+            connectionTestResult = "✗ 서버를 찾지 못했습니다. URL을 직접 입력하거나 맥미니 miniopsd 재시작을 확인하세요."
         } else {
-            connectionTestResult = "✓ \(servers.count)개 서버 발견"
+            connectionTestResult = "✓ \(servers.count)개 서버 발견 — 목록에서 선택하세요."
         }
     }
 

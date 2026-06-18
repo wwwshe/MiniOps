@@ -43,6 +43,9 @@ struct MiniOpsApp: App {
                 onAPIServerRestart: { restartAPIServer() },
                 onMonitoringRestart: { monitoringService.restart() }
             )
+            .onAppear {
+                NSApp.setActivationPolicy(.regular)
+            }
         }
         .defaultSize(width: 520, height: 480)
         .windowResizability(.contentSize)
@@ -71,6 +74,8 @@ struct MiniOpsApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
+
         let settings = AppSettings.shared
         AppContainer.monitoringService?.start()
 

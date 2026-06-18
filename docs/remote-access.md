@@ -68,6 +68,8 @@ brew services restart miniops
 
 직접 `http://<IP>:8787` 입력은 Bonjour 없이도 동작합니다.
 
+Bonjour가 막혀 있으면 앱이 **같은 Wi‑Fi 서브넷**을 스캔해 `/api/v1/health`로 서버를 찾습니다 (수 초 소요).
+
 ### 터미널 (curl)
 
 ```bash
