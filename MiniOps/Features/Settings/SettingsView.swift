@@ -139,9 +139,16 @@ struct SettingsView: View {
                 .onChange(of: settings.remoteServerToken) { _, _ in onMonitoringRestart() }
 
                 Section("원격 서버 Docker") {
-                    Text("Docker 모니터링은 맥미니 서버에서 실행됩니다. 서버의 docker CLI 경로를 설정하세요.")
+                    Text("메뉴바의 Docker 상태는 맥미니 서버 기준입니다. **불러오기**는 서버에 저장된 경로를 표시할 뿐이며, 경로를 바꾼 뒤 **서버에 저장**해야 반영됩니다.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    if let serverDockerError = monitoringService.snapshot.docker.errorMessage,
+                       !monitoringService.snapshot.docker.isAvailable {
+                        Text("서버 Docker: \(serverDockerError)")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
 
                     TextField("Docker CLI 경로", text: $remoteDockerPath, prompt: Text("/usr/local/bin/docker"))
                         .textFieldStyle(.roundedBorder)

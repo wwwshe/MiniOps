@@ -92,8 +92,10 @@ public final class HTTPServer {
     }
 
     private func parseRequest(_ raw: String) -> HTTPRequest {
-        let lines = raw.split(separator: "\r\n", omittingEmptySubsequences: false)
-        guard let requestLine = lines.first else {
+        let (headerSection, bodySection) = Self.splitHeadersAndBody(raw)
+        let headerLines = headerSection.components(separatedBy: "\r\n")
+
+        guard let requestLine = headerLines.first else {
             return HTTPRequest(method: "GET", path: "/", headers: [:], body: Data())
         }
 
@@ -102,12 +104,7 @@ public final class HTTPServer {
         let path = parts.dropFirst().first.map { String($0.split(separator: "?").first ?? $0) } ?? "/"
 
         var headers: [String: String] = [:]
-        var bodyStartIndex: Int?
-        for (index, line) in lines.dropFirst().enumerated() {
-            if line.isEmpty {
-                bodyStartIndex = index + 2
-                break
-            }
+        for line in headerLines.dropFirst() where !line.isEmpty {
             let headerParts = line.split(separator: ":", maxSplits: 1)
             guard headerParts.count == 2 else { continue }
             let key = String(headerParts[0]).trimmingCharacters(in: .whitespaces).lowercased()
@@ -115,17 +112,22 @@ public final class HTTPServer {
             headers[key] = value
         }
 
-        var body = Data()
-        if let bodyStartIndex, bodyStartIndex < lines.count {
-            let bodyString = lines.dropFirst(bodyStartIndex).joined(separator: "\r\n")
-            body = Data(bodyString.utf8)
-        } else if let contentLength = headers["content-length"], let length = Int(contentLength), length > 0 {
-            if let bodyRange = raw.range(of: "\r\n\r\n") {
-                body = Data(raw[bodyRange.upperBound...].utf8)
-            }
+        var body = Data(bodySection.utf8)
+        if let contentLength = headers["content-length"], let length = Int(contentLength), length >= 0 {
+            body = body.prefix(length)
         }
 
         return HTTPRequest(method: method, path: path, headers: headers, body: body)
+    }
+
+    private static func splitHeadersAndBody(_ raw: String) -> (headerSection: String, bodySection: String) {
+        if let range = raw.range(of: "\r\n\r\n") {
+            return (String(raw[..<range.lowerBound]), String(raw[range.upperBound...]))
+        }
+        if let range = raw.range(of: "\n\n") {
+            return (String(raw[..<range.lowerBound]), String(raw[range.upperBound...]))
+        }
+        return (raw, "")
     }
 
     private func buildHTTPResponse(_ response: HTTPResponse) -> Data {
@@ -144,6 +146,7 @@ public final class HTTPServer {
     private func statusText(for code: Int) -> String {
         switch code {
         case 200: return "OK"
+        case 400: return "Bad Request"
         case 401: return "Unauthorized"
         case 404: return "Not Found"
         default: return "Error"
