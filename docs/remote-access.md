@@ -7,7 +7,8 @@ MiniOps는 Mac Mini에서 로컬 HTTP API를 제공합니다. **같은 Wi‑Fi( 
 서버에는 **miniopsd** (헤드리스 에이전트)를 설치합니다. GUI가 필요 없습니다.
 
 ```bash
-brew install --formula Formula/miniops.rb
+brew tap wwwshe/miniops https://github.com/wwwshe/MiniOps.git
+brew install miniops
 brew services start miniops
 miniopsd --print-config
 ```

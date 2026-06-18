@@ -4,11 +4,12 @@ GUI 없이 Mac Mini에서 MiniOps 에이전트를 실행하는 방법입니다.
 
 ## Homebrew (권장)
 
+최신 Homebrew는 로컬 `Formula/*.rb` 직접 설치를 지원하지 않습니다. **tap**으로 설치하세요.
+
 ```bash
-# 저장소 클론 후 로컬 formula 설치
-git clone https://github.com/wwwshe/MiniOps.git
-cd MiniOps
-brew install --formula Formula/miniops.rb
+# GitHub 저장소를 tap으로 등록 후 설치 (저장소 클론 불필요)
+brew tap wwwshe/miniops https://github.com/wwwshe/MiniOps.git
+brew install miniops
 
 # 백그라운드 서비스 시작
 brew services start miniops
@@ -28,6 +29,22 @@ miniopsd --print-token
 ```bash
 brew services stop miniops
 ```
+
+### `brew install --formula` 오류
+
+다음과 같은 메시지가 나오면 로컬 formula 설치가 막힌 것입니다.
+
+```
+Error: Homebrew requires formulae to be in a tap, rejecting:
+  Formula/miniops.rb
+```
+
+위 **tap** 방식(`brew tap wwwshe/miniops ...`)을 사용하세요.
+
+### 요구 사항
+
+- macOS 14+
+- Xcode 또는 Command Line Tools (`xcode-select --install`) — `brew install` 시 소스 빌드에 필요
 
 ## 수동 설치
 

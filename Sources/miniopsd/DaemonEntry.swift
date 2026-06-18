@@ -66,6 +66,7 @@ struct MiniOpsDaemonMain {
           miniopsd --help          Show this help
 
         Install as service:
+          brew tap wwwshe/miniops https://github.com/wwwshe/MiniOps.git
           brew install miniops
           brew services start miniops
         """)

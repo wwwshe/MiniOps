@@ -7,9 +7,13 @@ class Miniops < Formula
   head "https://github.com/wwwshe/MiniOps.git", branch: "main"
 
   depends_on :macos
+  depends_on :xcode => :build
 
   def install
-    system "swift", "build", "-c", "release", "--product", "miniopsd"
+    system "swift", "build",
+           "-c", "release",
+           "--disable-sandbox",
+           "--product", "miniopsd"
     bin.install ".build/release/miniopsd"
   end
 
