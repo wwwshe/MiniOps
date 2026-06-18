@@ -29,18 +29,18 @@ struct MiniOpsApp: App {
         MenuBarExtra {
             MenuBarView(monitoringService: monitoringService, settings: settings)
                 .background(WindowLauncher(showOnboarding: $showOnboarding))
-                .onChange(of: monitoringService.snapshot.updatedAt) { _, _ in
-                    NotificationMonitor.shared.evaluate(monitoringService: monitoringService)
-                }
-                .onChange(of: monitoringService.connectionError) { _, _ in
-                    NotificationMonitor.shared.evaluate(monitoringService: monitoringService)
-                }
         } label: {
             Image(systemName: "server.rack")
                 .symbolRenderingMode(.palette)
                 .foregroundStyle(statusColor, .primary)
         }
         .menuBarExtraStyle(.window)
+
+        Window("MiniOps 대시보드", id: "dashboard") {
+            DashboardView(monitoringService: monitoringService, settings: settings)
+                .onAppear { NSApp.setActivationPolicy(.regular) }
+        }
+        .defaultSize(width: 420, height: 560)
 
         Window("MiniOps 설정", id: "settings") {
             SettingsView(
@@ -51,7 +51,7 @@ struct MiniOpsApp: App {
             )
             .onAppear { NSApp.setActivationPolicy(.regular) }
         }
-        .defaultSize(width: 560, height: 480)
+        .defaultSize(width: 720, height: 620)
         .windowResizability(.contentSize)
 
         Window("MiniOps 시작하기", id: "onboarding") {

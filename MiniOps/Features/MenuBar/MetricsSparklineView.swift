@@ -32,6 +32,6 @@ struct MetricsSparklineView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .frame(height: 28)
+        .frame(height: 44)
     }
 }

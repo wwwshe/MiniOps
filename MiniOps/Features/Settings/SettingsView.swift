@@ -34,7 +34,7 @@ struct SettingsView: View {
             notificationsTab
                 .tabItem { Label("알림", systemImage: "bell") }
         }
-        .frame(width: 560, height: 480)
+        .frame(width: 720, height: 620)
         .sheet(isPresented: $showAddHealthCheck) {
             HealthCheckEditorView(
                 target: HealthCheckTarget(name: "", urlString: "http://"),
@@ -54,7 +54,7 @@ struct SettingsView: View {
         Form {
             Section {
                 Text("맥미니(miniopsd) API에 연결합니다. Token은 맥미니에서 `miniopsd --print-config`로 확인하세요.")
-                    .font(.caption)
+                    .font(.headline)
                     .foregroundStyle(.secondary)
             }
 
@@ -81,7 +81,7 @@ struct SettingsView: View {
 
                 if let discoveryMessage {
                     Text(discoveryMessage)
-                        .font(.caption)
+                        .font(.headline)
                         .foregroundStyle(discoveryMessageColor)
                 }
 
@@ -94,14 +94,14 @@ struct SettingsView: View {
                     Button("연결 테스트") { Task { await testConnection() } }
                     if let connectionTestResult {
                         Text(connectionTestResult)
-                            .font(.caption)
+                            .font(.headline)
                             .foregroundStyle(connectionTestResult.hasPrefix("✓") ? .green : .red)
                     }
                 }
 
                 if connectionTestResult?.hasPrefix("✓") == true {
                     Text("연결되었습니다. 메뉴바 아이콘을 눌러 서버 상태를 확인하세요.")
-                        .font(.caption)
+                        .font(.headline)
                         .foregroundStyle(.green)
                 }
             }
@@ -122,7 +122,7 @@ struct SettingsView: View {
         Form {
             Section {
                 Text("맥미니 서버의 Docker CLI 경로를 설정합니다.")
-                    .font(.caption)
+                    .font(.headline)
                     .foregroundStyle(.secondary)
             }
 
@@ -130,7 +130,7 @@ struct SettingsView: View {
                 if let serverDockerError = monitoringService.snapshot.docker.errorMessage,
                    !monitoringService.snapshot.docker.isAvailable {
                     Text("서버 Docker: \(serverDockerError)")
-                        .font(.caption)
+                        .font(.headline)
                         .foregroundStyle(.orange)
                 }
 
@@ -143,7 +143,7 @@ struct SettingsView: View {
 
                 if let remoteDockerStatus {
                     Text(remoteDockerStatus)
-                        .font(.caption)
+                        .font(.headline)
                         .foregroundStyle(remoteDockerStatus.hasPrefix("✓") ? .green : .red)
                 }
             }
@@ -159,7 +159,7 @@ struct SettingsView: View {
         Form {
             Section {
                 Text("맥미니 서버에서 주기적으로 외부 URL을 체크합니다. 실패 시 알림을 받을 수 있습니다.")
-                    .font(.caption)
+                    .font(.headline)
                     .foregroundStyle(.secondary)
             }
 
@@ -171,15 +171,15 @@ struct SettingsView: View {
                     ForEach(healthCheckTargets, id: \.id) { target in
                         HStack(spacing: 12) {
                             Image(systemName: "circle.fill")
-                                .font(.system(size: 8))
+                                .font(.system(size: 16))
                                 .foregroundStyle(.green)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(target.name).font(.body.weight(.medium))
-                                Text(target.url).font(.caption).foregroundStyle(.secondary)
+                                Text(target.name).font(.title3.weight(.medium))
+                                Text(target.url).font(.headline).foregroundStyle(.secondary)
                             }
                             Spacer()
                             Text("매 \(target.intervalSeconds)초")
-                                .font(.caption)
+                                .font(.headline)
                                 .foregroundStyle(.secondary)
                             Button {
                                 editingTarget = target.asHealthCheckTarget
@@ -204,14 +204,14 @@ struct SettingsView: View {
                     Text("등록된 Health Check")
                     Spacer()
                     Button("새로고침") { Task { await loadHealthChecks() } }
-                        .font(.caption)
+                        .font(.headline)
                     Button("추가") { showAddHealthCheck = true }
-                        .font(.caption)
+                        .font(.headline)
                 }
             } footer: {
                 if let healthCheckStatus, healthCheckStatus.hasPrefix("✗") {
                     Text(healthCheckStatus)
-                        .font(.caption)
+                        .font(.headline)
                         .foregroundStyle(.red)
                 }
             }
@@ -225,7 +225,7 @@ struct SettingsView: View {
         Form {
             Section {
                 Text("서버 상태가 임계치를 넘거나 Docker/Health Check에 문제가 생기면 macOS 알림을 보냅니다.")
-                    .font(.caption)
+                    .font(.headline)
                     .foregroundStyle(.secondary)
             }
 
