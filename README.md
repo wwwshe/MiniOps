@@ -80,7 +80,8 @@ MiniOps/
 | v0.3 | Docker 로그 에러/경고 패턴 감지 및 알림 |
 | v0.4 | 컨테이너별 CPU/Memory (`docker stats`) |
 | v0.5 | 대시보드 화면 추가 |
-| **v1.0** | **brew 및 mac release 배포** |
+| v1.0 | brew 및 mac release 배포 |
+| **v1.0.1** | **mac 앱 로그인 시 자동 실행 추가** |
 | v1.1 | Slack / Discord 알림 |
 | v1.2 | iOS/iPad 조회 앱 (선택) |
 

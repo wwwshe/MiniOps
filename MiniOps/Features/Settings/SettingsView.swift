@@ -1,5 +1,6 @@
 import SwiftUI
 import MiniOpsKit
+import ServiceManagement
 
 struct SettingsView: View {
     @Bindable var settings: AppSettings
@@ -32,7 +33,7 @@ struct SettingsView: View {
             healthCheckTab
                 .tabItem { Label("Health Check", systemImage: "heart.text.square") }
             notificationsTab
-                .tabItem { Label("알림", systemImage: "bell") }
+                .tabItem { Label("설정", systemImage: "gearshape") }
         }
         .frame(width: 720, height: 620)
         .sheet(isPresented: $showAddHealthCheck) {
@@ -221,15 +222,35 @@ struct SettingsView: View {
         .task { await loadHealthChecks() }
     }
 
+    private var launchAtLoginEnabled: Bool {
+        SMAppService.mainApp.status == .enabled
+    }
+
+    private func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            // 실패 시 무시
+        }
+    }
+
     private var notificationsTab: some View {
         Form {
-            Section {
-                Text("서버 상태가 임계치를 넘거나 Docker/Health Check에 문제가 생기면 macOS 알림을 보냅니다.")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+            Section("일반") {
+                Toggle("로그인 시 자동 실행", isOn: Binding(
+                    get: { launchAtLoginEnabled },
+                    set: { setLaunchAtLogin($0) }
+                ))
             }
 
             Section("알림") {
+                Text("서버 상태가 임계치를 넘거나 Docker/Health Check에 문제가 생기면 macOS 알림을 보냅니다.")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
                 Toggle("알림 사용", isOn: $preferences.notificationsEnabled)
                     .onChange(of: preferences.notificationsEnabled) { _, enabled in
                         if enabled { NotificationMonitor.shared.requestAuthorizationIfNeeded() }

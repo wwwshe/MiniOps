@@ -99,11 +99,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil,
             queue: .main
         ) { _ in
-            NSApp.setActivationPolicy(.regular)
-            NSApp.activate(ignoringOtherApps: true)
-            AppContainer.openSettings?()
-            if let window = NSApp.windows.first(where: SettingsWindowPresenter.isSettingsWindow) {
-                window.makeKeyAndOrderFront(nil)
+            Task { @MainActor in
+                NSApp.setActivationPolicy(.regular)
+                NSApp.activate(ignoringOtherApps: true)
+                AppContainer.openSettings?()
+                if let window = NSApp.windows.first(where: { SettingsWindowPresenter.isSettingsWindow($0) }) {
+                    window.makeKeyAndOrderFront(nil)
+                }
             }
         }
 
