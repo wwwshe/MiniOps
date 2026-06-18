@@ -36,11 +36,37 @@ ifconfig en0 | grep "inet "
 1. 같은 Wi‑Fi에 연결된 Mac에 MiniOps 설치
 2. 설정 → **서버** 탭 → **원격 서버 조회** 선택
 3. 입력:
-   - **서버 URL**: `http://192.168.0.10:8787` (Mac Mini LAN IP)
-   - **API Token**: Mac Mini에서 복사한 토큰
-4. **연결 테스트** 클릭
+   - **서버 URL**: `http://192.168.0.10:8787` (Mac Mini LAN IP) — **`https://` 아님**
+   - **API Token**: Mac Mini에서 `miniopsd --print-config`로 복사
+4. **LAN에서 서버 찾기** (같은 Wi‑Fi, Bonjour) 또는 **연결 테스트**
+
+> **TLS 오류 (`A TLS error caused the secure connection to fail`)**  
+> MiniOps API는 평문 **HTTP**만 제공합니다. `https://192.168.x.x:8787`로 접속하면 위 오류가 납니다. 반드시 `http://`를 사용하세요.
 
 메뉴바에 표시되는 CPU/Memory/Disk/Docker는 **Mac Mini 서버** 기준입니다.
+
+**API Token은 보안상 자동 공유되지 않습니다.** 맥미니에서 한 번 복사해 입력해야 합니다.
+
+### LAN에서 서버 찾기가 안 될 때
+
+Bonjour(mDNS)는 **서버·클라이언트 둘 다 최신 빌드**가 필요합니다.
+
+**맥미니 (서버):**
+
+```bash
+brew update
+brew upgrade miniops
+brew services restart miniops
+```
+
+로그에 `(Bonjour: _miniops._tcp)`가 보이면 광고 중입니다.
+
+**클라이언트 Mac:**
+
+- Xcode에서 MiniOps 앱 다시 빌드·실행
+- **시스템 설정 → 개인정보 보호 및 보안 → 로컬 네트워크**에서 MiniOps 허용
+
+직접 `http://<IP>:8787` 입력은 Bonjour 없이도 동작합니다.
 
 ### 터미널 (curl)
 

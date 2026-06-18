@@ -5,20 +5,38 @@ public enum RemoteMonitoringError: LocalizedError {
     case unauthorized
     case serverError(Int)
     case decodingFailed
+    case tlsOnPlainHTTP
     case network(Error)
 
     public var errorDescription: String? {
         switch self {
         case .invalidBaseURL:
-            return "서버 URL이 올바르지 않습니다."
+            return "서버 URL이 올바르지 않습니다. 예: http://192.168.0.10:8787"
         case .unauthorized:
             return "API Token이 올바르지 않습니다."
         case .serverError(let code):
             return "서버 오류 (HTTP \(code))"
         case .decodingFailed:
             return "서버 응답을 해석할 수 없습니다."
+        case .tlsOnPlainHTTP:
+            return "TLS 연결 실패. MiniOps API는 암호화(HTTPS)가 아닌 http:// 로 접속하세요."
         case .network(let error):
+            if let urlError = error as? URLError, Self.isTLSError(urlError) {
+                return RemoteMonitoringError.tlsOnPlainHTTP.errorDescription
+            }
             return error.localizedDescription
+        }
+    }
+
+    static func isTLSError(_ error: URLError) -> Bool {
+        switch error.code {
+        case .secureConnectionFailed,
+             .serverCertificateUntrusted,
+             .clientCertificateRejected,
+             .cannotLoadFromNetwork:
+            return true
+        default:
+            return error.errorCode == -1200
         }
     }
 }
@@ -51,8 +69,7 @@ public final class RemoteMonitoringClient: @unchecked Sendable {
     }
 
     private func normalizedBaseURL(_ baseURL: String) throws -> URL {
-        let trimmed = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let url = URL(string: trimmed) else {
+        guard let url = RemoteAPIURL.normalize(baseURL) else {
             throw RemoteMonitoringError.invalidBaseURL
         }
         return url
@@ -79,6 +96,9 @@ public final class RemoteMonitoringClient: @unchecked Sendable {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
+            if let urlError = error as? URLError, RemoteMonitoringError.isTLSError(urlError) {
+                throw RemoteMonitoringError.tlsOnPlainHTTP
+            }
             throw RemoteMonitoringError.network(error)
         }
 
@@ -155,5 +175,3 @@ public final class RemoteMonitoringClient: @unchecked Sendable {
         )
     }
 }
-
-// Fix typo serverided -> serverError - I made a typo, need to fix

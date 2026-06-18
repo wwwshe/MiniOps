@@ -26,5 +26,11 @@
 	<string>Copyright © 2026 MiniOps. All rights reserved.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>같은 Wi‑Fi의 Mac Mini MiniOps 서버를 찾고 상태를 조회합니다.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_miniops._tcp</string>
+	</array>
 </dict>
 </plist>

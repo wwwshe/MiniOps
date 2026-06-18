@@ -10,6 +10,8 @@ struct SettingsView: View {
     @State private var showAddHealthCheck = false
     @State private var editingTarget: HealthCheckTarget?
     @State private var connectionTestResult: String?
+    @State private var discoveredServers: [DiscoveredMiniOpsServer] = []
+    @State private var isDiscovering = false
 
     private var lanBaseURL: String? {
         LocalNetworkAddress.apiBaseURL(port: settings.apiPort)
@@ -65,15 +67,36 @@ struct SettingsView: View {
 
             if settings.isClientMode {
                 Section("원격 서버 (같은 Wi‑Fi)") {
-                    Text("Mac Mini의 LAN IP와 API Token을 입력하세요.")
+                    Text("같은 Wi‑Fi의 Mac Mini를 찾거나, LAN URL과 API Token을 입력하세요. URL은 반드시 http:// 입니다 (HTTPS 아님).")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    HStack {
+                        Button(isDiscovering ? "찾는 중…" : "LAN에서 서버 찾기") {
+                            Task { await discoverServers() }
+                        }
+                        .disabled(isDiscovering)
+
+                        if !discoveredServers.isEmpty {
+                            Picker("발견된 서버", selection: Binding(
+                                get: { settings.remoteServerBaseURL },
+                                set: { selectDiscoveredServer($0) }
+                            )) {
+                                Text("선택…").tag("")
+                                ForEach(discoveredServers) { server in
+                                    Text("\(server.name) — \(server.baseURL)").tag(server.baseURL)
+                                }
+                            }
+                            .labelsHidden()
+                        }
+                    }
 
                     TextField("서버 이름", text: $settings.remoteServerName)
                         .textFieldStyle(.roundedBorder)
 
                     TextField("서버 URL", text: $settings.remoteServerBaseURL, prompt: Text("http://192.168.0.10:8787"))
                         .textFieldStyle(.roundedBorder)
+                        .onSubmit { normalizeRemoteURL() }
 
                     SecureField("API Token", text: $settings.remoteServerToken)
                         .textFieldStyle(.roundedBorder)
@@ -89,7 +112,13 @@ struct SettingsView: View {
                         }
                     }
                 }
-                .onChange(of: settings.remoteServerBaseURL) { _, _ in onMonitoringRestart() }
+                .onChange(of: settings.remoteServerBaseURL) { _, newValue in
+                    if let normalized = RemoteAPIURL.normalize(newValue)?.absoluteString,
+                       normalized != newValue.trimmingCharacters(in: .whitespacesAndNewlines) {
+                        settings.remoteServerBaseURL = normalized
+                    }
+                    onMonitoringRestart()
+                }
                 .onChange(of: settings.remoteServerToken) { _, _ in onMonitoringRestart() }
             } else {
                 Section("Docker") {
@@ -204,7 +233,43 @@ struct SettingsView: View {
         .padding()
     }
 
+    private func normalizeRemoteURL() {
+        guard let normalized = RemoteAPIURL.normalize(settings.remoteServerBaseURL)?.absoluteString else { return }
+        settings.remoteServerBaseURL = normalized
+    }
+
+    private func discoverServers() async {
+        isDiscovering = true
+        defer { isDiscovering = false }
+
+        let browser = MiniOpsServerBrowser()
+        let servers = await browser.discover()
+        discoveredServers = servers
+
+        if servers.count == 1, let server = servers.first {
+            selectDiscoveredServer(server.baseURL)
+        } else if servers.isEmpty {
+            connectionTestResult = "✗ 서버를 찾지 못했습니다. 맥미니 miniopsd 업그레이드·재시작, 로컬 네트워크 권한을 확인하세요."
+        } else {
+            connectionTestResult = "✓ \(servers.count)개 서버 발견"
+        }
+    }
+
+    private func selectDiscoveredServer(_ baseURL: String) {
+        guard let server = discoveredServers.first(where: { $0.baseURL == baseURL }) else {
+            settings.remoteServerBaseURL = baseURL
+            onMonitoringRestart()
+            return
+        }
+        settings.remoteServerBaseURL = server.baseURL
+        if settings.remoteServerName.isEmpty || settings.remoteServerName == "Mac Mini Server" {
+            settings.remoteServerName = server.name
+        }
+        onMonitoringRestart()
+    }
+
     private func testConnection() async {
+        normalizeRemoteURL()
         let client = RemoteMonitoringClient()
         do {
             _ = try await client.fetchSnapshot(
