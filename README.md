@@ -72,8 +72,8 @@ MiniOps/
 | 버전 | 기능 |
 |------|------|
 | v0.1 | 메뉴바 + Health Check + LAN API |
-| **v0.1.5** | **온보딩, 알림, Docker 제어, 메트릭 히스토리, UX 개선** |
-| v0.2 | 웹 대시보드, 로그 수집·보관, Health Check 편집 |
+| v0.1.5 | 온보딩, 알림, Docker 제어, 메트릭 히스토리, UX 개선 |
+| **v0.2** | **로그 수집·보관, Health Check 편집** |
 | v0.3 | AI 로그 분석 (Ollama / Cloud) |
 | v0.4 | Slack / Discord 알림 |
 | v0.5 | 다중 서버 프로필, 컨테이너별 CPU/Memory (`docker stats`) |
