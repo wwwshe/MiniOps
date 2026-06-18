@@ -1,5 +1,21 @@
 import Foundation
 
+public struct DockerLogsResult: Codable, Sendable, Equatable {
+    public let container: String
+    public let logs: String
+    public let tail: Int
+    public let errorMessage: String?
+    public let collectedAt: Date
+
+    public init(container: String, logs: String, tail: Int, errorMessage: String?, collectedAt: Date) {
+        self.container = container
+        self.logs = logs
+        self.tail = tail
+        self.errorMessage = errorMessage
+        self.collectedAt = collectedAt
+    }
+}
+
 public final class DockerMonitor: DockerMonitoring, @unchecked Sendable {
     private let settings: AppSettings
 
@@ -44,6 +60,53 @@ public final class DockerMonitor: DockerMonitoring, @unchecked Sendable {
         }
     }
 
+    public func fetchLogs(container: String, tail: Int = 200) async -> DockerLogsResult {
+        let trimmed = container.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lineCount = min(max(tail, 1), 2000)
+        let dockerPath = settings.dockerPath
+
+        guard !trimmed.isEmpty else {
+            return DockerLogsResult(
+                container: trimmed,
+                logs: "",
+                tail: lineCount,
+                errorMessage: "Container name is required",
+                collectedAt: Date()
+            )
+        }
+
+        guard FileManager.default.isExecutableFile(atPath: dockerPath) else {
+            return DockerLogsResult(
+                container: trimmed,
+                logs: "",
+                tail: lineCount,
+                errorMessage: "Docker CLI not found at \(dockerPath)",
+                collectedAt: Date()
+            )
+        }
+
+        do {
+            let output = try await runProcess(executable: dockerPath, arguments: [
+                "logs", "--tail", String(lineCount), trimmed
+            ])
+            return DockerLogsResult(
+                container: trimmed,
+                logs: output,
+                tail: lineCount,
+                errorMessage: nil,
+                collectedAt: Date()
+            )
+        } catch {
+            return DockerLogsResult(
+                container: trimmed,
+                logs: "",
+                tail: lineCount,
+                errorMessage: error.localizedDescription,
+                collectedAt: Date()
+            )
+        }
+    }
+
     private func parseLine(_ line: Substring) -> DockerContainer? {
         let parts = line.split(separator: "\t", omittingEmptySubsequences: false)
         guard parts.count >= 4 else { return nil }
@@ -62,18 +125,26 @@ public final class DockerMonitor: DockerMonitoring, @unchecked Sendable {
             process.executableURL = URL(fileURLWithPath: executable)
             process.arguments = arguments
 
-            let pipe = Pipe()
-            process.standardOutput = pipe
-            process.standardError = Pipe()
+            let stdoutPipe = Pipe()
+            let stderrPipe = Pipe()
+            process.standardOutput = stdoutPipe
+            process.standardError = stderrPipe
 
             process.terminationHandler = { proc in
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let output = String(data: data, encoding: .utf8) ?? ""
+                let stdout = String(
+                    data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(),
+                    encoding: .utf8
+                ) ?? ""
+                let stderr = String(
+                    data: stderrPipe.fileHandleForReading.readDataToEndOfFile(),
+                    encoding: .utf8
+                ) ?? ""
 
                 if proc.terminationStatus == 0 {
-                    continuation.resume(returning: output)
+                    continuation.resume(returning: stdout)
                 } else {
-                    continuation.resume(throwing: DockerMonitorError.commandFailed(output))
+                    let message = stderr.isEmpty ? stdout : stderr
+                    continuation.resume(throwing: DockerMonitorError.commandFailed(message))
                 }
             }
 

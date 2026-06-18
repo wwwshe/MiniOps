@@ -13,8 +13,28 @@ public enum APIAuthMiddleware {
 public struct HTTPRequest {
     let method: String
     let path: String
+    let query: [String: String]
     let headers: [String: String]
     let body: Data
+
+    public init(
+        method: String,
+        path: String,
+        query: [String: String] = [:],
+        headers: [String: String] = [:],
+        body: Data = Data()
+    ) {
+        self.method = method
+        self.path = path
+        self.query = query
+        self.headers = headers
+        self.body = body
+    }
+
+    func queryInt(_ key: String, default defaultValue: Int, min: Int = 1, max: Int = 2000) -> Int {
+        guard let raw = query[key], let value = Int(raw) else { return defaultValue }
+        return Swift.min(Swift.max(value, min), max)
+    }
 }
 
 public struct HTTPResponse {

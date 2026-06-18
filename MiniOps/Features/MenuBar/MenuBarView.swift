@@ -6,7 +6,6 @@ struct MenuBarView: View {
     @Environment(\.openWindow) private var openWindow
 
     @Bindable var monitoringService: MonitoringService
-    @Bindable var settings: AppSettings
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -57,7 +56,7 @@ struct MenuBarView: View {
             }
 
             HStack(spacing: 4) {
-                Image(systemName: settings.isClientMode ? "network" : "desktopcomputer")
+                Image(systemName: "network")
                     .font(.caption2)
                 Text(monitoringService.displaySourceName)
                     .font(.caption)
@@ -80,7 +79,7 @@ struct MenuBarView: View {
 
     private var metricsSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(settings.isClientMode ? "서버 시스템" : "시스템")
+            Text("서버 시스템")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
 
@@ -125,6 +124,15 @@ struct MenuBarView: View {
                         Text(container.name)
                             .lineLimit(1)
                         Spacer()
+                        Button {
+                            openWindow(id: "docker-logs", value: DockerLogRequest(containerName: container.name))
+                            NSApp.setActivationPolicy(.regular)
+                            NSApp.activate(ignoringOtherApps: true)
+                        } label: {
+                            Image(systemName: "doc.text")
+                        }
+                        .buttonStyle(.plain)
+                        .help("로그 보기")
                         Text(container.displayStatus)
                             .foregroundStyle(.secondary)
                     }

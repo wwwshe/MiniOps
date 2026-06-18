@@ -69,7 +69,7 @@ public final class HTTPServer {
         }
 
         let request = parseRequest(from: requestData)
-        let response = router.route(request: request)
+        let response = await router.route(request: request)
         let responseData = buildHTTPResponse(response)
 
         connection.send(content: responseData, completion: .contentProcessed { _ in
@@ -157,7 +157,14 @@ public final class HTTPServer {
 
         let parts = requestLine.split(separator: " ")
         let method = parts.first.map(String.init) ?? "GET"
-        let path = parts.dropFirst().first.map { String($0.split(separator: "?").first ?? $0) } ?? "/"
+        let rawPath = parts.dropFirst().first.map(String.init) ?? "/"
+        var path = rawPath
+        var query: [String: String] = [:]
+        if let queryStart = rawPath.firstIndex(of: "?") {
+            path = String(rawPath[..<queryStart])
+            let queryString = String(rawPath[rawPath.index(after: queryStart)...])
+            query = Self.parseQuery(queryString)
+        }
 
         var headers: [String: String] = [:]
         for line in headerLines.dropFirst() where !line.isEmpty {
@@ -174,7 +181,21 @@ public final class HTTPServer {
             body = body.prefix(expectedBodyLength)
         }
 
-        return HTTPRequest(method: method, path: path, headers: headers, body: Data(body))
+        return HTTPRequest(method: method, path: path, query: query, headers: headers, body: Data(body))
+    }
+
+    private static func parseQuery(_ string: String) -> [String: String] {
+        var result: [String: String] = [:]
+        for pair in string.split(separator: "&") {
+            let keyValue = pair.split(separator: "=", maxSplits: 1)
+            guard let keyPart = keyValue.first else { continue }
+            let key = String(keyPart).removingPercentEncoding ?? String(keyPart)
+            let value = keyValue.count > 1
+                ? (String(keyValue[1]).removingPercentEncoding ?? String(keyValue[1]))
+                : ""
+            result[key] = value
+        }
+        return result
     }
 
     private func buildHTTPResponse(_ response: HTTPResponse) -> Data {

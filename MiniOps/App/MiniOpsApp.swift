@@ -9,26 +9,17 @@ struct MiniOpsApp: App {
     @State private var monitoringService: MonitoringService
     @State private var settings = AppSettings.shared
 
-    private let httpServer: HTTPServer
-
     init() {
+        AppSettings.shared.monitoringMode = .client
+
         let service = MonitoringService()
-        let router = APIRouter(monitoringService: service)
-        let server = HTTPServer(router: router)
-
         AppContainer.monitoringService = service
-        AppContainer.httpServer = server
-
         _monitoringService = State(initialValue: service)
-        httpServer = server
     }
 
     var body: some Scene {
         MenuBarExtra {
-            MenuBarView(
-                monitoringService: monitoringService,
-                settings: settings
-            )
+            MenuBarView(monitoringService: monitoringService)
         } label: {
             Image(systemName: "server.rack")
                 .symbolRenderingMode(.palette)
@@ -40,14 +31,24 @@ struct MiniOpsApp: App {
             SettingsView(
                 settings: settings,
                 monitoringService: monitoringService,
-                onAPIServerRestart: { restartAPIServer() },
                 onMonitoringRestart: { monitoringService.restart() }
             )
             .onAppear {
                 NSApp.setActivationPolicy(.regular)
             }
         }
-        .defaultSize(width: 520, height: 480)
+        .defaultSize(width: 520, height: 420)
+        .windowResizability(.contentSize)
+
+        WindowGroup(id: "docker-logs", for: DockerLogRequest.self) { $request in
+            if let request {
+                DockerLogsView(request: request, settings: settings)
+                    .onAppear {
+                        NSApp.setActivationPolicy(.regular)
+                    }
+            }
+        }
+        .defaultSize(width: 720, height: 480)
         .windowResizability(.contentSize)
     }
 
@@ -61,27 +62,13 @@ struct MiniOpsApp: App {
         case .critical: return .red
         }
     }
-
-    private func restartAPIServer() {
-        if settings.isAgentMode && settings.apiEnabled {
-            httpServer.restart()
-        } else {
-            httpServer.stop()
-        }
-    }
 }
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-
-        let settings = AppSettings.shared
         AppContainer.monitoringService?.start()
-
-        if settings.isAgentMode && settings.apiEnabled {
-            AppContainer.httpServer?.start()
-        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

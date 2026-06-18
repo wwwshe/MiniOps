@@ -108,9 +108,9 @@ launchctl load ~/Library/LaunchAgents/com.miniops.miniopsd.plist
 
 ## 설정 파일
 
-`miniopsd`와 메뉴바 앱(MiniOps)은 **같은 설정**을 공유합니다.
+`miniopsd`는 다음 plist에 설정을 저장합니다. 메뉴바 앱은 **원격 서버 URL·Token**만 별도로 저장합니다.
 
-- 경로: `~/Library/Preferences/com.miniops.settings.plist`
+- 서버: `~/Library/Preferences/com.miniops.settings.plist`
 - API 포트 기본값: `8787`
 - 최초 실행 시 API Token 자동 생성
 
@@ -127,7 +127,7 @@ launchctl load ~/Library/LaunchAgents/com.miniops.miniopsd.plist
 
 1. 서버에서 `miniopsd --print-config`로 LAN URL과 Token 확인
 2. 다른 Mac에 **MiniOps 메뉴바 앱** 설치
-3. 설정 → **원격 서버 조회** → URL + Token 입력
+3. 설정에서 URL + Token 입력 → **연결 테스트**
 
 또는 curl:
 

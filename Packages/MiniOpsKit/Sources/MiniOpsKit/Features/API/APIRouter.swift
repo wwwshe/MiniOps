@@ -10,7 +10,7 @@ public final class APIRouter {
         self.settings = settings
     }
 
-    func route(request: HTTPRequest) -> HTTPResponse {
+    func route(request: HTTPRequest) async -> HTTPResponse {
         if request.path == "/api/v1/health" {
             return .json(APIHealthResponse(status: "ok"))
         }
@@ -26,29 +26,32 @@ public final class APIRouter {
             return .json(makeMetricsResponse())
         case ("GET", "/api/v1/docker"):
             return .json(makeDockerResponse())
+        case ("GET", let path) where path.hasPrefix("/api/v1/docker/") && path.hasSuffix("/logs"):
+            return await fetchDockerLogs(request: request, path: path)
         case ("GET", "/api/v1/health-checks"):
             return .json(makeHealthChecksResponse())
         case ("GET", "/api/v1/settings"):
             return .json(makeSettingsResponse())
         case ("PATCH", "/api/v1/settings"):
-            return updateSettings(request: request)
+            return await updateSettings(request: request)
         case ("POST", "/api/v1/settings"):
-            return updateSettings(request: request)
+            return await updateSettings(request: request)
         case ("PUT", "/api/v1/settings"):
-            return updateSettings(request: request)
+            return await updateSettings(request: request)
         default:
             return .notFound()
         }
     }
 
-    private func makeSettingsResponse() -> APISettingsResponse {
+    private func makeSettingsResponse(docker: APIDockerResponse? = nil) -> APISettingsResponse {
         APISettingsResponse(
             dockerPath: settings.dockerPath,
-            detectedDockerPath: DockerPathDetector.detect()
+            detectedDockerPath: DockerPathDetector.detect(),
+            docker: docker
         )
     }
 
-    private func updateSettings(request: HTTPRequest) -> HTTPResponse {
+    private func updateSettings(request: HTTPRequest) async -> HTTPResponse {
         guard !request.body.isEmpty else {
             return .badRequest("Request body is required")
         }
@@ -64,9 +67,39 @@ public final class APIRouter {
         }
 
         settings.dockerPath = dockerPath
-        Task { await monitoringService.refreshDocker() }
+        await monitoringService.refreshDocker()
 
-        return .json(makeSettingsResponse())
+        return .json(makeSettingsResponse(docker: makeDockerResponse()))
+    }
+
+    private func fetchDockerLogs(request: HTTPRequest, path: String) async -> HTTPResponse {
+        let prefix = "/api/v1/docker/"
+        let suffix = "/logs"
+        guard path.count > prefix.count + suffix.count else {
+            return .badRequest("Container name is required")
+        }
+
+        let start = path.index(path.startIndex, offsetBy: prefix.count)
+        let end = path.index(path.endIndex, offsetBy: -suffix.count)
+        let rawContainer = String(path[start..<end])
+        let container = rawContainer.removingPercentEncoding ?? rawContainer
+
+        guard !container.isEmpty else {
+            return .badRequest("Container name is required")
+        }
+
+        let tail = request.queryInt("tail", default: 200)
+        let result = await monitoringService.fetchDockerLogs(container: container, tail: tail)
+
+        return .json(
+            APIDockerLogsResponse(
+                container: result.container,
+                logs: result.logs,
+                tail: result.tail,
+                errorMessage: result.errorMessage,
+                collectedAt: result.collectedAt
+            )
+        )
     }
 
     private func makeStatusResponse() -> APIStatusResponse {
@@ -197,6 +230,14 @@ public struct APIDockerContainerItem: Codable {
     let isRunning: Bool
 }
 
+public struct APIDockerLogsResponse: Codable, Sendable {
+    public let container: String
+    public let logs: String
+    public let tail: Int
+    public let errorMessage: String?
+    public let collectedAt: Date
+}
+
 public struct APIHealthChecksResponse: Codable {
     let checks: [APIHealthCheckItem]
 }
@@ -216,10 +257,12 @@ public struct APIHealthCheckItem: Codable {
 public struct APISettingsResponse: Codable, Sendable {
     public let dockerPath: String
     public let detectedDockerPath: String?
+    public let docker: APIDockerResponse?
 
-    public init(dockerPath: String, detectedDockerPath: String?) {
+    public init(dockerPath: String, detectedDockerPath: String?, docker: APIDockerResponse? = nil) {
         self.dockerPath = dockerPath
         self.detectedDockerPath = detectedDockerPath
+        self.docker = docker
     }
 }
 

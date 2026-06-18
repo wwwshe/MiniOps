@@ -65,8 +65,8 @@ GUI 없이 백그라운드로 실행합니다. 설정은 `miniopsd --print-confi
 
 ### 다른 Mac (클라이언트) — 메뉴바 앱
 
-1. 설정 → **원격 서버 조회** 선택
-2. 서버 URL + API Token 입력 → **연결 테스트**
+1. 설정에서 서버 URL + API Token 입력 → **연결 테스트**
+2. (선택) **LAN에서 서버 찾기**로 Bonjour/서브넷 스캔
 
 자세한 내용: [docs/remote-access.md](docs/remote-access.md)
 
@@ -84,6 +84,7 @@ curl -H "Authorization: Bearer <token>" http://192.168.0.10:8787/api/v1/status
 | `GET /api/v1/status` | 전체 상태 요약 |
 | `GET /api/v1/metrics` | CPU/Memory/Disk |
 | `GET /api/v1/docker` | Docker 컨테이너 |
+| `GET /api/v1/docker/{name}/logs` | Docker 컨테이너 로그 |
 | `GET /api/v1/health-checks` | Health Check 결과 |
 
 ## 프로젝트 구조

@@ -14,9 +14,9 @@ public enum MonitoringMode: String, Codable, CaseIterable, Sendable {
     public var description: String {
         switch self {
         case .agent:
-            return "이 Mac에서 직접 수집하고 API를 제공합니다. Mac Mini 서버에 설치할 때 사용하세요."
+            return "miniopsd에서 사용합니다. CPU/Memory/Disk/Docker 수집과 LAN API를 제공합니다."
         case .client:
-            return "같은 Wi‑Fi(LAN)에 있는 Mac Mini 서버의 API에서 상태를 가져옵니다."
+            return "같은 Wi‑Fi(LAN)에 있는 Mac Mini 서버(miniopsd) API에서 상태를 가져옵니다."
         }
     }
 }

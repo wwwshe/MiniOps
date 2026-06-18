@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		CA821F8C2FE396D70055A3B1 /* MiniOpsKit in Frameworks */ = {isa = PBXBuildFile; productRef = CC0000020000000000000001 /* MiniOpsKit */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		AA0000010000000000000001 /* MiniOps.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MiniOps.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +27,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CA821F8C2FE396D70055A3B1 /* MiniOpsKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -97,7 +102,7 @@
 			mainGroup = AA0000040000000000000001;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				CC0000010000000000000001 /* XCLocalSwiftPackageReference "MiniOpsKit" */,
+				CC0000010000000000000001 /* XCLocalSwiftPackageReference "Packages/MiniOpsKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = AA0000050000000000000001 /* Products */;
@@ -326,7 +331,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		CC0000010000000000000001 /* XCLocalSwiftPackageReference "MiniOpsKit" */ = {
+		CC0000010000000000000001 /* XCLocalSwiftPackageReference "Packages/MiniOpsKit" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/MiniOpsKit;
 		};
@@ -335,8 +340,8 @@
 /* Begin XCSwiftPackageProductDependency section */
 		CC0000020000000000000001 /* MiniOpsKit */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = CC0000010000000000000001 /* XCLocalSwiftPackageReference "Packages/MiniOpsKit" */;
 			productName = MiniOpsKit;
-			package = CC0000010000000000000001 /* XCLocalSwiftPackageReference "MiniOpsKit" */;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

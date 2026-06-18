@@ -164,6 +164,10 @@ public final class MonitoringService {
         await collectDocker()
     }
 
+    public func fetchDockerLogs(container: String, tail: Int = 200) async -> DockerLogsResult {
+        await dockerMonitor.fetchLogs(container: container, tail: tail)
+    }
+
     private func runHealthCheck(for target: HealthCheckTarget) async {
         guard settings.isAgentMode else { return }
         let previous = healthCheckResults[target.id]

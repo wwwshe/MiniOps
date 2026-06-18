@@ -55,12 +55,25 @@ public final class RemoteSettingsClient: @unchecked Sendable {
         try await send(method: "GET", path: "/api/v1/docker", baseURL: baseURL, token: token, body: nil)
     }
 
+    public func fetchDockerLogs(
+        baseURL: String,
+        token: String,
+        container: String,
+        tail: Int = 200
+    ) async throws -> APIDockerLogsResponse {
+        let encoded = container.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? container
+        let lineCount = min(max(tail, 1), 2000)
+        let path = "/api/v1/docker/\(encoded)/logs?tail=\(lineCount)"
+        return try await send(method: "GET", path: path, baseURL: baseURL, token: token, body: nil, timeout: 30)
+    }
+
     private func send<T: Decodable>(
         method: String,
         path: String,
         baseURL: String,
         token: String,
-        body: Data?
+        body: Data?,
+        timeout: TimeInterval = 15
     ) async throws -> T {
         guard let root = RemoteAPIURL.normalize(baseURL),
               let url = URL(string: path, relativeTo: root) else {
@@ -71,7 +84,7 @@ public final class RemoteSettingsClient: @unchecked Sendable {
         request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 15
+        request.timeoutInterval = timeout
         request.httpBody = body
 
         let data: Data
@@ -95,7 +108,7 @@ public final class RemoteSettingsClient: @unchecked Sendable {
         default:
             var message = (try? decoder.decode(APIErrorResponse.self, from: data))?.error
             if http.statusCode == 404 {
-                message = "서버에 설정 API가 없습니다. 맥미니에서 brew upgrade miniops 후 재시작하세요."
+                message = "서버에 해당 API가 없습니다. 맥미니에서 brew upgrade miniops 후 재시작하세요."
             }
             throw RemoteSettingsError.serverError(http.statusCode, message)
         }
