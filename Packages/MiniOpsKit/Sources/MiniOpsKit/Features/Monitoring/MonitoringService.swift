@@ -160,6 +160,10 @@ public final class MonitoringService {
         rebuildLocalSnapshot()
     }
 
+    public func refreshDocker() async {
+        await collectDocker()
+    }
+
     private func runHealthCheck(for target: HealthCheckTarget) async {
         guard settings.isAgentMode else { return }
         let previous = healthCheckResults[target.id]

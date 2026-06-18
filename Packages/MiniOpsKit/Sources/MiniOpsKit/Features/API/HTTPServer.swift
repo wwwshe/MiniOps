@@ -94,7 +94,7 @@ public final class HTTPServer {
     private func parseRequest(_ raw: String) -> HTTPRequest {
         let lines = raw.split(separator: "\r\n", omittingEmptySubsequences: false)
         guard let requestLine = lines.first else {
-            return HTTPRequest(method: "GET", path: "/", headers: [:])
+            return HTTPRequest(method: "GET", path: "/", headers: [:], body: Data())
         }
 
         let parts = requestLine.split(separator: " ")
@@ -102,8 +102,12 @@ public final class HTTPServer {
         let path = parts.dropFirst().first.map { String($0.split(separator: "?").first ?? $0) } ?? "/"
 
         var headers: [String: String] = [:]
-        for line in lines.dropFirst() {
-            if line.isEmpty { break }
+        var bodyStartIndex: Int?
+        for (index, line) in lines.dropFirst().enumerated() {
+            if line.isEmpty {
+                bodyStartIndex = index + 2
+                break
+            }
             let headerParts = line.split(separator: ":", maxSplits: 1)
             guard headerParts.count == 2 else { continue }
             let key = String(headerParts[0]).trimmingCharacters(in: .whitespaces).lowercased()
@@ -111,7 +115,17 @@ public final class HTTPServer {
             headers[key] = value
         }
 
-        return HTTPRequest(method: method, path: path, headers: headers)
+        var body = Data()
+        if let bodyStartIndex, bodyStartIndex < lines.count {
+            let bodyString = lines.dropFirst(bodyStartIndex).joined(separator: "\r\n")
+            body = Data(bodyString.utf8)
+        } else if let contentLength = headers["content-length"], let length = Int(contentLength), length > 0 {
+            if let bodyRange = raw.range(of: "\r\n\r\n") {
+                body = Data(raw[bodyRange.upperBound...].utf8)
+            }
+        }
+
+        return HTTPRequest(method: method, path: path, headers: headers, body: body)
     }
 
     private func buildHTTPResponse(_ response: HTTPResponse) -> Data {

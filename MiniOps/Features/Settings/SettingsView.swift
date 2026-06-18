@@ -12,6 +12,17 @@ struct SettingsView: View {
     @State private var connectionTestResult: String?
     @State private var discoveredServers: [DiscoveredMiniOpsServer] = []
     @State private var isDiscovering = false
+    @State private var discoveryMessage: String?
+    @State private var discoveryMessageKind: DiscoveryMessageKind = .idle
+    @State private var remoteDockerPath: String = ""
+    @State private var remoteDockerStatus: String?
+
+    private enum DiscoveryMessageKind {
+        case idle
+        case loading
+        case success
+        case failure
+    }
 
     private var lanBaseURL: String? {
         LocalNetworkAddress.apiBaseURL(port: settings.apiPort)
@@ -91,6 +102,12 @@ struct SettingsView: View {
                         }
                     }
 
+                    if let discoveryMessage {
+                        Text(discoveryMessage)
+                            .font(.caption)
+                            .foregroundStyle(discoveryMessageColor)
+                    }
+
                     TextField("서버 이름", text: $settings.remoteServerName)
                         .textFieldStyle(.roundedBorder)
 
@@ -120,6 +137,33 @@ struct SettingsView: View {
                     onMonitoringRestart()
                 }
                 .onChange(of: settings.remoteServerToken) { _, _ in onMonitoringRestart() }
+
+                Section("원격 서버 Docker") {
+                    Text("Docker 모니터링은 맥미니 서버에서 실행됩니다. 서버의 docker CLI 경로를 설정하세요.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    TextField("Docker CLI 경로", text: $remoteDockerPath, prompt: Text("/usr/local/bin/docker"))
+                        .textFieldStyle(.roundedBorder)
+
+                    HStack {
+                        Button("서버에서 불러오기") {
+                            Task { await loadRemoteDockerPath() }
+                        }
+                        Button("서버에 저장") {
+                            Task { await saveRemoteDockerPath() }
+                        }
+                    }
+
+                    if let remoteDockerStatus {
+                        Text(remoteDockerStatus)
+                            .font(.caption)
+                            .foregroundStyle(remoteDockerStatus.hasPrefix("✓") ? .green : .red)
+                    }
+                }
+                .task(id: settings.remoteServerBaseURL + settings.remoteServerToken) {
+                    await loadRemoteDockerPath(silent: true)
+                }
             } else {
                 Section("Docker") {
                     TextField("Docker CLI 경로", text: $settings.dockerPath)
@@ -233,14 +277,77 @@ struct SettingsView: View {
         .padding()
     }
 
+    private var discoveryMessageColor: Color {
+        switch discoveryMessageKind {
+        case .idle:
+            return .secondary
+        case .loading, .success:
+            return .green
+        case .failure:
+            return .red
+        }
+    }
+
     private func normalizeRemoteURL() {
         guard let normalized = RemoteAPIURL.normalize(settings.remoteServerBaseURL)?.absoluteString else { return }
         settings.remoteServerBaseURL = normalized
     }
 
+    private func loadRemoteDockerPath(silent: Bool = false) async {
+        let baseURL = settings.remoteServerBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let token = settings.remoteServerToken.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !baseURL.isEmpty, !token.isEmpty else {
+            if !silent {
+                remoteDockerStatus = "서버 URL과 API Token을 먼저 입력하세요."
+            }
+            return
+        }
+
+        let client = RemoteSettingsClient()
+        do {
+            let response = try await client.fetchSettings(baseURL: baseURL, token: token)
+            remoteDockerPath = response.dockerPath
+            if !silent {
+                remoteDockerStatus = "✓ 서버 설정을 불러왔습니다."
+            }
+        } catch {
+            if !silent {
+                remoteDockerStatus = "✗ \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func saveRemoteDockerPath() async {
+        let baseURL = settings.remoteServerBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let token = settings.remoteServerToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        let path = remoteDockerPath.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !baseURL.isEmpty, !token.isEmpty else {
+            remoteDockerStatus = "서버 URL과 API Token을 먼저 입력하세요."
+            return
+        }
+
+        guard !path.isEmpty else {
+            remoteDockerStatus = "Docker CLI 경로를 입력하세요."
+            return
+        }
+
+        let client = RemoteSettingsClient()
+        do {
+            let response = try await client.updateDockerPath(baseURL: baseURL, token: token, dockerPath: path)
+            remoteDockerPath = response.dockerPath
+            remoteDockerStatus = "✓ 서버에 저장했습니다."
+            onMonitoringRestart()
+        } catch {
+            remoteDockerStatus = "✗ \(error.localizedDescription)"
+        }
+    }
+
     private func discoverServers() async {
         isDiscovering = true
-        connectionTestResult = "같은 Wi‑Fi에서 서버를 찾는 중…"
+        discoveryMessageKind = .loading
+        discoveryMessage = "같은 Wi‑Fi에서 서버를 찾는 중…"
         defer { isDiscovering = false }
 
         let browser = MiniOpsServerBrowser()
@@ -249,11 +356,14 @@ struct SettingsView: View {
 
         if servers.count == 1, let server = servers.first {
             selectDiscoveredServer(server.baseURL)
-            connectionTestResult = "✓ 서버 발견: \(server.baseURL)"
+            discoveryMessageKind = .success
+            discoveryMessage = "서버 발견: \(server.baseURL)"
         } else if servers.isEmpty {
-            connectionTestResult = "✗ 서버를 찾지 못했습니다. URL을 직접 입력하거나 맥미니 miniopsd 재시작을 확인하세요."
+            discoveryMessageKind = .failure
+            discoveryMessage = "서버를 찾지 못했습니다. miniopsd 실행·로컬 네트워크 권한을 확인하세요."
         } else {
-            connectionTestResult = "✓ \(servers.count)개 서버 발견 — 목록에서 선택하세요."
+            discoveryMessageKind = .success
+            discoveryMessage = "\(servers.count)개 서버 발견 — 목록에서 선택하세요."
         }
     }
 

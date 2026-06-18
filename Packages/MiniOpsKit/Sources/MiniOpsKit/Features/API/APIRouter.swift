@@ -28,9 +28,38 @@ public final class APIRouter {
             return .json(makeDockerResponse())
         case ("GET", "/api/v1/health-checks"):
             return .json(makeHealthChecksResponse())
+        case ("GET", "/api/v1/settings"):
+            return .json(makeSettingsResponse())
+        case ("PATCH", "/api/v1/settings"):
+            return updateSettings(request: request)
         default:
             return .notFound()
         }
+    }
+
+    private func makeSettingsResponse() -> APISettingsResponse {
+        APISettingsResponse(dockerPath: settings.dockerPath)
+    }
+
+    private func updateSettings(request: HTTPRequest) -> HTTPResponse {
+        guard !request.body.isEmpty else {
+            return .badRequest("Request body is required")
+        }
+
+        let decoder = JSONDecoder()
+        guard let patch = try? decoder.decode(APISettingsPatch.self, from: request.body) else {
+            return .badRequest("Invalid JSON body")
+        }
+
+        guard let dockerPath = patch.dockerPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !dockerPath.isEmpty else {
+            return .badRequest("dockerPath is required")
+        }
+
+        settings.dockerPath = dockerPath
+        Task { await monitoringService.refreshDocker() }
+
+        return .json(makeSettingsResponse())
     }
 
     private func makeStatusResponse() -> APIStatusResponse {
@@ -175,4 +204,12 @@ public struct APIHealthCheckItem: Codable {
     let lastError: String?
     let lastCheckedAt: Date
     let consecutiveFailures: Int
+}
+
+public struct APISettingsResponse: Codable, Sendable {
+    public let dockerPath: String
+}
+
+public struct APISettingsPatch: Codable, Sendable {
+    public let dockerPath: String?
 }

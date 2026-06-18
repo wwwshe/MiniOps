@@ -14,6 +14,7 @@ public struct HTTPRequest {
     let method: String
     let path: String
     let headers: [String: String]
+    let body: Data
 }
 
 public struct HTTPResponse {
@@ -37,11 +38,15 @@ public struct HTTPResponse {
         .json(APIErrorResponse(error: "Unauthorized"), status: 401)
     }
 
+    static func badRequest(_ message: String) -> HTTPResponse {
+        .json(APIErrorResponse(error: message), status: 400)
+    }
+
     static func notFound() -> HTTPResponse {
         .json(APIErrorResponse(error: "Not Found"), status: 404)
     }
 }
 
 public struct APIErrorResponse: Codable {
-    let error: String
+    public let error: String
 }
