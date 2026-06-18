@@ -6,8 +6,8 @@ class Miniops < Formula
   version "1.0.0"
   license "MIT"
 
-  url "https://github.com/wwwshe/MiniOps/archive/refs/tags/v1.0.0.tar.gz"
-  sha256 "d5558cd419c8d46bdc958064cb97f963d1ea793866414c025906ec15033512ed"
+  url "https://github.com/wwwshe/MiniOps/archive/refs/tags/1.0.0.tar.gz"
+  sha256 "0c203142e299c9089488ddee9aef2b37247fa721f186aebf622ec450c8e86847"
 
   head "https://github.com/wwwshe/MiniOps.git", branch: "main"
 
