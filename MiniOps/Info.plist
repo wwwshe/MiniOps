@@ -15,22 +15,22 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.1.0</string>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>LSUIElement</key>
 	<true/>
-	<key>NSHumanReadableCopyright</key>
-	<string>Copyright © 2026 MiniOps. All rights reserved.</string>
-	<key>NSPrincipalClass</key>
-	<string>NSApplication</string>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>같은 Wi‑Fi의 Mac Mini MiniOps 서버를 찾고 상태를 조회합니다.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_miniops._tcp</string>
 	</array>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2026 MiniOps. All rights reserved.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>같은 Wi‑Fi의 Mac Mini MiniOps 서버를 찾고 상태를 조회합니다.</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
 </dict>
 </plist>

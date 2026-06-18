@@ -30,9 +30,9 @@ struct MiniOpsApp: App {
             MenuBarView(monitoringService: monitoringService, settings: settings)
                 .background(WindowLauncher(showOnboarding: $showOnboarding))
         } label: {
-            Image(systemName: "server.rack")
-                .symbolRenderingMode(.palette)
-                .foregroundStyle(statusColor, .primary)
+            Image("ic_menu_bar")
+                .resizable()
+                .frame(width: 18, height: 18)
         }
         .menuBarExtraStyle(.window)
 
