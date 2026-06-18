@@ -268,7 +268,20 @@ public final class MonitoringService {
 
     private func collectDocker() async {
         guard settings.isAgentMode else { return }
-        let docker = await dockerMonitor.fetchContainers()
+        var docker = await dockerMonitor.fetchContainers()
+        // 기존 stats 보존 (collectDockerStats가 덮어쓰기 전까지 유지)
+        let previousStats = Dictionary(uniqueKeysWithValues: snapshot.docker.containers.compactMap { c -> (String, DockerContainer)? in
+            guard c.cpuPercent != nil else { return nil }
+            return (c.name, c)
+        })
+        docker.containers = docker.containers.map { container in
+            guard let prev = previousStats[container.name] else { return container }
+            var updated = container
+            updated.cpuPercent = prev.cpuPercent
+            updated.memPercent = prev.memPercent
+            updated.memUsage   = prev.memUsage
+            return updated
+        }
         snapshot.docker = docker
         snapshot.updatedAt = Date()
         rebuildLocalSnapshot()
