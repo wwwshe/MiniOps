@@ -58,7 +58,29 @@ brew install miniops
 ### 요구 사항
 
 - macOS 14+
-- Xcode 또는 Command Line Tools (`xcode-select --install`) — `brew install` 시 소스 빌드에 필요
+- **Command Line Tools** (`xcode-select --install`) — 서버에는 전체 Xcode.app 불필요
+
+### `Xcode.app is required` 오류
+
+```
+miniops: A full installation of Xcode.app is required to compile this software.
+```
+
+formula가 전체 Xcode를 요구하던 이전 버전일 수 있습니다. tap을 갱신한 뒤 다시 설치하세요.
+
+```bash
+brew untap wwwshe/miniops
+brew tap wwwshe/miniops https://github.com/wwwshe/MiniOps.git
+brew trust wwwshe/miniops
+brew install --HEAD wwwshe/miniops/miniops
+```
+
+CLT만 있는지 확인:
+
+```bash
+xcode-select -p
+swift --version
+```
 
 ## 수동 설치
 

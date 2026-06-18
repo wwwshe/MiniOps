@@ -7,9 +7,10 @@ class Miniops < Formula
   head "https://github.com/wwwshe/MiniOps.git", branch: "main"
 
   depends_on :macos
-  depends_on :xcode => :build
 
   def install
+    odie "Command Line Tools required. Run: xcode-select --install" unless MacOS::CLT.installed? || MacOS::Xcode.installed?
+
     system "swift", "build",
            "-c", "release",
            "--disable-sandbox",
