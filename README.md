@@ -4,16 +4,19 @@ AI 기반 Mac Mini 서버 모니터링 및 복구 도구
 
 MiniOps는 Mac Mini 홈서버 운영자를 위한 AI 기반 운영 도우미입니다. CPU, 메모리, Docker 상태를 모니터링하고 Health Check를 수행합니다. 같은 Wi‑Fi(LAN)에서 HTTP API로 상태를 조회할 수 있습니다.
 
-## v0.1.5 기능 (현재)
+## v0.5 기능 (현재)
 
 - **miniopsd** — GUI 없는 서버 에이전트 (Homebrew 설치 가능)
 - **메뉴바 앱** — 같은 Wi‑Fi의 다른 Mac에서 서버 상태 조회 (클라이언트 전용)
 - **온보딩 마법사** — LAN 찾기 → Token 붙여넣기 → Docker 설정
-- **메뉴바 UX** — 요약 한 줄, 섹션 접기, 메트릭 스파크라인, 마지막 갱신 시간
+- **메뉴바 UX** — 요약 한 줄 (Docker/CPU/Mem), 마지막 갱신 시간
+- **대시보드 창** — 메트릭 스파크라인, Docker 컨테이너별 CPU/Memory, Health Check 현황
 - **Docker 로그 뷰어** — 검색, 자동 새로고침, 맨 아래 고정, 복사/저장
-- **Docker 제어** — 원격 restart/stop
-- **Health Check** — 원격 등록/삭제 (서버에서 실행)
-- **macOS 알림** — CPU/Memory/Disk 임계치, 컨테이너 중지, Health Check 실패
+- **Docker 로그 에러/경고 감지** — ERROR/WARN/FATAL 패턴 자동 감지 및 알림
+- **Docker 제어** — 원격 restart/stop (완료 토스트 알림 포함)
+- **컨테이너별 CPU/Memory** — `docker stats` 기반 실시간 통계
+- **Health Check** — 원격 등록/수정/삭제 (서버에서 실행)
+- **macOS 알림** — CPU/Memory/Disk 임계치, 컨테이너 중지, Health Check 실패, 로그 에러
 - **메트릭 히스토리** — 최근 1시간 (5초 간격)
 
 ## 두 가지 구성
@@ -76,8 +79,8 @@ MiniOps/
 | v0.2 | 로그 수집·보관, Health Check 편집 |
 | v0.3 | Docker 로그 에러/경고 패턴 감지 및 알림 |
 | v0.4 | 컨테이너별 CPU/Memory (`docker stats`) |
-| **v0.5** | **대시보드 화면 추가** |
-| v1.0 | brew 및 mac release 배포 |
+| v0.5 | 대시보드 화면 추가 |
+| **v1.0** | **brew 및 mac release 배포** |
 | v1.1 | Slack / Discord 알림 |
 | v1.2 | iOS/iPad 조회 앱 (선택) |
 
