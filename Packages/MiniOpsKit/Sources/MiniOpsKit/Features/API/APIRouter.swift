@@ -182,11 +182,11 @@ public struct APIMetricsResponse: Codable {
     let collectedAt: Date
 }
 
-public struct APIDockerResponse: Codable {
-    let available: Bool
-    let errorMessage: String?
-    let containers: [APIDockerContainerItem]
-    let collectedAt: Date
+public struct APIDockerResponse: Codable, Sendable {
+    public let available: Bool
+    public let errorMessage: String?
+    public let containers: [APIDockerContainerItem]
+    public let collectedAt: Date
 }
 
 public struct APIDockerContainerItem: Codable {

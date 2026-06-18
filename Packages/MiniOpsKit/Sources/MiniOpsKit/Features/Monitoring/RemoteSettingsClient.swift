@@ -51,6 +51,10 @@ public final class RemoteSettingsClient: @unchecked Sendable {
         return try await send(method: "PATCH", path: "/api/v1/settings", baseURL: baseURL, token: token, body: body)
     }
 
+    public func fetchDocker(baseURL: String, token: String) async throws -> APIDockerResponse {
+        try await send(method: "GET", path: "/api/v1/docker", baseURL: baseURL, token: token, body: nil)
+    }
+
     private func send<T: Decodable>(
         method: String,
         path: String,

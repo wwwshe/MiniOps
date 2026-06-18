@@ -139,7 +139,7 @@ struct SettingsView: View {
                 .onChange(of: settings.remoteServerToken) { _, _ in onMonitoringRestart() }
 
                 Section("원격 서버 Docker") {
-                    Text("불러오기는 맥미니 서버에서 docker CLI 경로를 찾습니다(which). 찾은 뒤 서버에 저장하면 모니터링에 반영됩니다.")
+                    Text("불러오기로 맥미니에서 docker 경로를 찾고, 연결 테스트로 서버에 적용한 뒤 동작을 확인합니다.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -157,8 +157,8 @@ struct SettingsView: View {
                         Button("서버에서 불러오기") {
                             Task { await loadRemoteDockerPath() }
                         }
-                        Button("서버에 저장") {
-                            Task { await saveRemoteDockerPath() }
+                        Button("연결 테스트") {
+                            Task { await testRemoteDocker() }
                         }
                     }
 
@@ -339,7 +339,7 @@ struct SettingsView: View {
         }
     }
 
-    private func saveRemoteDockerPath() async {
+    private func testRemoteDocker() async {
         let baseURL = settings.remoteServerBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let token = settings.remoteServerToken.trimmingCharacters(in: .whitespacesAndNewlines)
         let path = remoteDockerPath.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -350,15 +350,24 @@ struct SettingsView: View {
         }
 
         guard !path.isEmpty else {
-            remoteDockerStatus = "Docker CLI 경로를 입력하세요."
+            remoteDockerStatus = "Docker CLI 경로를 입력하거나 불러오기를 누르세요."
             return
         }
 
         let client = RemoteSettingsClient()
         do {
-            let response = try await client.updateDockerPath(baseURL: baseURL, token: token, dockerPath: path)
-            remoteDockerPath = response.dockerPath
-            remoteDockerStatus = "✓ 서버에 저장했습니다."
+            let saved = try await client.updateDockerPath(baseURL: baseURL, token: token, dockerPath: path)
+            remoteDockerPath = saved.dockerPath
+
+            let docker = try await client.fetchDocker(baseURL: baseURL, token: token)
+            if docker.available {
+                let count = docker.containers.count
+                remoteDockerStatus = count > 0
+                    ? "✓ Docker 연결 성공 (\(count)개 컨테이너)"
+                    : "✓ Docker 연결 성공 (실행 중인 컨테이너 없음)"
+            } else {
+                remoteDockerStatus = "✗ \(docker.errorMessage ?? "Docker를 사용할 수 없습니다.")"
+            }
             onMonitoringRestart()
         } catch {
             remoteDockerStatus = "✗ \(error.localizedDescription)"
