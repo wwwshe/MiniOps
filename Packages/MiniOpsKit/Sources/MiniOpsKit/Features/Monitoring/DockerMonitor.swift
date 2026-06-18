@@ -123,6 +123,34 @@ public final class DockerMonitor: DockerMonitoring, @unchecked Sendable {
         }
     }
 
+    /// 컨테이너 이름 → (cpuPercent, memPercent, memUsage) 딕셔너리 반환
+    public func fetchStats() async -> [String: (cpu: Double, mem: Double, memUsage: String)] {
+        let dockerPath = settings.dockerPath
+        guard FileManager.default.isExecutableFile(atPath: dockerPath) else { return [:] }
+
+        guard let output = try? await runProcess(
+            executable: dockerPath,
+            arguments: ["stats", "--no-stream", "--format", "{{.Name}}\t{{.CPUPerc}}\t{{.MemPerc}}\t{{.MemUsage}}"]
+        ) else { return [:] }
+
+        var result: [String: (cpu: Double, mem: Double, memUsage: String)] = [:]
+
+        for line in output.split(whereSeparator: \.isNewline) {
+            let parts = line.split(separator: "\t", omittingEmptySubsequences: false)
+            guard parts.count >= 4 else { continue }
+
+            let name     = String(parts[0]).trimmingCharacters(in: .whitespaces)
+            let cpuStr   = String(parts[1]).replacingOccurrences(of: "%", with: "").trimmingCharacters(in: .whitespaces)
+            let memStr   = String(parts[2]).replacingOccurrences(of: "%", with: "").trimmingCharacters(in: .whitespaces)
+            let memUsage = String(parts[3]).components(separatedBy: " /").first?.trimmingCharacters(in: .whitespaces) ?? ""
+
+            guard let cpu = Double(cpuStr), let mem = Double(memStr) else { continue }
+            result[name] = (cpu, mem, memUsage)
+        }
+
+        return result
+    }
+
     public func restartContainer(_ container: String) async -> DockerActionResult {
         await runContainerAction(container, action: "restart", arguments: ["restart", container])
     }

@@ -225,10 +225,24 @@ struct MenuBarView: View {
                 .fill(container.isRunning ? Color.green : Color.orange)
                 .frame(width: 6, height: 6)
 
-            Text(container.name)
-                .lineLimit(1)
-                .contentShape(Rectangle())
-                .onTapGesture { openLogs(container) }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(container.name)
+                    .lineLimit(1)
+                    .contentShape(Rectangle())
+                    .onTapGesture { openLogs(container) }
+
+                if container.isRunning, let cpu = container.cpuPercent, let mem = container.memPercent {
+                    HStack(spacing: 6) {
+                        Text(String(format: "CPU %.1f%%", cpu))
+                        Text(String(format: "Mem %.1f%%", mem))
+                        if let usage = container.memUsage {
+                            Text(usage)
+                        }
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                }
+            }
 
             Spacer()
 
@@ -247,8 +261,10 @@ struct MenuBarView: View {
             .menuStyle(.borderlessButton)
             .fixedSize()
 
-            Text(container.displayStatus)
-                .foregroundStyle(.secondary)
+            if !container.isRunning {
+                Text(container.displayStatus)
+                    .foregroundStyle(.secondary)
+            }
         }
         .font(.caption)
     }

@@ -5,6 +5,20 @@ public struct DockerContainer: Codable, Identifiable, Equatable, Sendable {
     public let name: String
     public let status: String
     public let state: String
+    public var cpuPercent: Double?
+    public var memPercent: Double?
+    public var memUsage: String?
+
+    public init(id: String, name: String, status: String, state: String,
+                cpuPercent: Double? = nil, memPercent: Double? = nil, memUsage: String? = nil) {
+        self.id = id
+        self.name = name
+        self.status = status
+        self.state = state
+        self.cpuPercent = cpuPercent
+        self.memPercent = memPercent
+        self.memUsage = memUsage
+    }
 
     public var isRunning: Bool {
         state.lowercased() == "running"

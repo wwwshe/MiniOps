@@ -317,7 +317,10 @@ public final class APIRouter {
                     name: $0.name,
                     status: $0.status,
                     state: $0.state,
-                    isRunning: $0.isRunning
+                    isRunning: $0.isRunning,
+                    cpuPercent: $0.cpuPercent,
+                    memPercent: $0.memPercent,
+                    memUsage: $0.memUsage
                 )
             },
             collectedAt: docker.collectedAt
@@ -395,6 +398,9 @@ public struct APIDockerContainerItem: Codable, Sendable {
     public let status: String
     public let state: String
     public let isRunning: Bool
+    public let cpuPercent: Double?
+    public let memPercent: Double?
+    public let memUsage: String?
 }
 
 public struct APIDockerLogsResponse: Codable, Sendable {

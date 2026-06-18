@@ -156,7 +156,10 @@ public final class RemoteMonitoringClient: @unchecked Sendable {
                     id: $0.id,
                     name: $0.name,
                     status: $0.status,
-                    state: $0.state
+                    state: $0.state,
+                    cpuPercent: $0.cpuPercent,
+                    memPercent: $0.memPercent,
+                    memUsage: $0.memUsage
                 )
             },
             isAvailable: docker.available,

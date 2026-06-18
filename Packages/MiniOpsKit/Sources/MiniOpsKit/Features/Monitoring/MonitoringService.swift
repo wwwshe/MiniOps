@@ -26,6 +26,7 @@ public final class MonitoringService {
 
     private var pollingTask: Task<Void, Never>?
     private var dockerTask: Task<Void, Never>?
+    private var dockerStatsTask: Task<Void, Never>?
     private var logWatcherTask: Task<Void, Never>?
     private var healthCheckTasks: [UUID: Task<Void, Never>] = [:]
     private var healthCheckResults: [UUID: HealthCheckResult] = [:]
@@ -78,11 +79,13 @@ public final class MonitoringService {
     public func stop() {
         pollingTask?.cancel()
         dockerTask?.cancel()
+        dockerStatsTask?.cancel()
         logWatcherTask?.cancel()
         healthCheckTasks.values.forEach { $0.cancel() }
         healthCheckTasks.removeAll()
         pollingTask = nil
         dockerTask = nil
+        dockerStatsTask = nil
         logWatcherTask = nil
     }
 
@@ -225,6 +228,13 @@ public final class MonitoringService {
             }
         }
 
+        dockerStatsTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.collectDockerStats()
+                try? await Task.sleep(for: .seconds(30))
+            }
+        }
+
         logWatcherTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.scanLogs()
@@ -272,6 +282,23 @@ public final class MonitoringService {
         snapshot.healthChecks = settings.healthCheckTargets.compactMap { healthCheckResults[$0.id] }
         snapshot.updatedAt = Date()
         rebuildLocalSnapshot()
+    }
+
+    private func collectDockerStats() async {
+        guard settings.isAgentMode else { return }
+        guard snapshot.docker.isAvailable else { return }
+        let stats = await dockerMonitor.fetchStats()
+        guard !stats.isEmpty else { return }
+        snapshot.docker.containers = snapshot.docker.containers.map { container in
+            var updated = container
+            if let s = stats[container.name] {
+                updated.cpuPercent = s.cpu
+                updated.memPercent = s.mem
+                updated.memUsage   = s.memUsage
+            }
+            return updated
+        }
+        snapshot.updatedAt = Date()
     }
 
     private func scanLogs() async {
