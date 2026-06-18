@@ -16,6 +16,22 @@ public struct DockerLogsResult: Codable, Sendable, Equatable {
     }
 }
 
+public struct DockerActionResult: Codable, Sendable, Equatable {
+    public let container: String
+    public let action: String
+    public let success: Bool
+    public let message: String?
+    public let collectedAt: Date
+
+    public init(container: String, action: String, success: Bool, message: String?, collectedAt: Date) {
+        self.container = container
+        self.action = action
+        self.success = success
+        self.message = message
+        self.collectedAt = collectedAt
+    }
+}
+
 public final class DockerMonitor: DockerMonitoring, @unchecked Sendable {
     private let settings: AppSettings
 
@@ -102,6 +118,62 @@ public final class DockerMonitor: DockerMonitoring, @unchecked Sendable {
                 logs: "",
                 tail: lineCount,
                 errorMessage: error.localizedDescription,
+                collectedAt: Date()
+            )
+        }
+    }
+
+    public func restartContainer(_ container: String) async -> DockerActionResult {
+        await runContainerAction(container, action: "restart", arguments: ["restart", container])
+    }
+
+    public func stopContainer(_ container: String) async -> DockerActionResult {
+        await runContainerAction(container, action: "stop", arguments: ["stop", container])
+    }
+
+    private func runContainerAction(
+        _ container: String,
+        action: String,
+        arguments: [String]
+    ) async -> DockerActionResult {
+        let trimmed = container.trimmingCharacters(in: .whitespacesAndNewlines)
+        let dockerPath = settings.dockerPath
+
+        guard !trimmed.isEmpty else {
+            return DockerActionResult(
+                container: trimmed,
+                action: action,
+                success: false,
+                message: "Container name is required",
+                collectedAt: Date()
+            )
+        }
+
+        guard FileManager.default.isExecutableFile(atPath: dockerPath) else {
+            return DockerActionResult(
+                container: trimmed,
+                action: action,
+                success: false,
+                message: "Docker CLI not found at \(dockerPath)",
+                collectedAt: Date()
+            )
+        }
+
+        do {
+            _ = try await runProcess(executable: dockerPath, arguments: arguments)
+            return DockerActionResult(
+                container: trimmed,
+                action: action,
+                success: true,
+                message: nil,
+                collectedAt: Date()
+            )
+        } catch {
+            return DockerActionResult(
+                container: trimmed,
+                action: action,
+                success: false,
+                message: error.localizedDescription,
                 collectedAt: Date()
             )
         }

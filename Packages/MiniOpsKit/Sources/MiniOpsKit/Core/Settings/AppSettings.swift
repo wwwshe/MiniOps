@@ -26,6 +26,10 @@ public final class AppSettings {
         didSet { saveHealthChecks() }
     }
 
+    public func setHealthCheckTargets(_ targets: [HealthCheckTarget]) {
+        healthCheckTargets = targets
+    }
+
     public var apiToken: String {
         didSet { defaults.set(apiToken, forKey: apiTokenKey) }
     }

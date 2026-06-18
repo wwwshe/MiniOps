@@ -7,23 +7,42 @@ public final class MonitoringService {
     public private(set) var snapshot: ServerStatusSnapshot = .empty
     public private(set) var connectionError: String?
     public private(set) var isLoadingRemote = false
+    public private(set) var metricsHistory: [MetricsHistoryPoint] = []
+
+    public var isMenuBarVisible = false {
+        didSet {
+            if isMenuBarVisible != oldValue {
+                restart()
+            }
+        }
+    }
 
     private let settings: AppSettings
     private let metricsCollector: SystemMetricsCollector
     private let dockerMonitor: DockerMonitor
     private let healthCheckService: HealthCheckService
     private let remoteClient: RemoteMonitoringClient
+    private let metricsHistoryStore = MetricsHistoryStore()
 
     private var pollingTask: Task<Void, Never>?
     private var dockerTask: Task<Void, Never>?
     private var healthCheckTasks: [UUID: Task<Void, Never>] = [:]
     private var healthCheckResults: [UUID: HealthCheckResult] = [:]
+    private var remotePollCount = 0
 
     public var displaySourceName: String {
         if settings.isClientMode {
             return settings.remoteServerName
         }
         return Host.current().localizedName ?? "This Mac"
+    }
+
+    public var lastUpdatedDescription: String {
+        guard snapshot.updatedAt != .distantPast else { return "갱신 없음" }
+        let seconds = Int(Date().timeIntervalSince(snapshot.updatedAt))
+        if seconds < 5 { return "방금 전" }
+        if seconds < 60 { return "\(seconds)초 전" }
+        return "\(seconds / 60)분 전"
     }
 
     public init(
@@ -43,6 +62,7 @@ public final class MonitoringService {
     public func start() {
         stop()
         connectionError = nil
+        remotePollCount = 0
 
         if settings.isClientMode {
             startRemotePolling()
@@ -76,13 +96,77 @@ public final class MonitoringService {
         rebuildLocalSnapshot()
     }
 
+    public func replaceHealthCheckTargets(_ targets: [HealthCheckTarget]) {
+        settings.setHealthCheckTargets(targets)
+        restartHealthChecks()
+    }
+
+    public func addHealthCheckTarget(_ target: HealthCheckTarget) {
+        settings.addHealthCheck(target)
+        restartHealthChecks()
+    }
+
+    public func removeHealthCheckTarget(id: UUID) {
+        settings.removeHealthCheck(id: id)
+        healthCheckResults.removeValue(forKey: id)
+        restartHealthChecks()
+    }
+
+    public func fetchDockerLogs(container: String, tail: Int = 200) async -> DockerLogsResult {
+        await dockerMonitor.fetchLogs(container: container, tail: tail)
+    }
+
+    public func controlDockerContainer(_ container: String, action: String) async -> DockerActionResult {
+        switch action {
+        case "restart":
+            let result = await dockerMonitor.restartContainer(container)
+            if result.success { await collectDocker() }
+            return result
+        case "stop":
+            let result = await dockerMonitor.stopContainer(container)
+            if result.success { await collectDocker() }
+            return result
+        default:
+            return DockerActionResult(
+                container: container,
+                action: action,
+                success: false,
+                message: "Unsupported action",
+                collectedAt: Date()
+            )
+        }
+    }
+
+    public func refreshMetricsHistory() async {
+        guard settings.isClientMode else {
+            metricsHistory = metricsHistoryStore.snapshot()
+            return
+        }
+
+        let baseURL = settings.remoteServerBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let token = settings.remoteServerToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !baseURL.isEmpty, !token.isEmpty else { return }
+
+        do {
+            let history = try await remoteClient.fetchMetricsHistory(baseURL: baseURL, token: token)
+            metricsHistory = history.points
+        } catch {
+            // Keep previous history on failure.
+        }
+    }
+
+    public func refreshDocker() async {
+        await collectDocker()
+    }
+
     // MARK: - Remote (Client Mode)
 
     private func startRemotePolling() {
         pollingTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.fetchRemoteSnapshot()
-                try? await Task.sleep(for: .seconds(5))
+                let interval = self?.isMenuBarVisible == true ? 3 : 8
+                try? await Task.sleep(for: .seconds(interval))
             }
         }
     }
@@ -108,6 +192,11 @@ public final class MonitoringService {
             let remoteSnapshot = try await remoteClient.fetchSnapshot(baseURL: baseURL, token: token)
             snapshot = remoteSnapshot
             connectionError = nil
+
+            remotePollCount += 1
+            if remotePollCount.isMultiple(of: 4) || metricsHistory.isEmpty {
+                await refreshMetricsHistory()
+            }
         } catch {
             connectionError = error.localizedDescription
         }
@@ -148,6 +237,8 @@ public final class MonitoringService {
         guard settings.isAgentMode else { return }
         let metrics = await metricsCollector.collect()
         snapshot.metrics = metrics
+        metricsHistoryStore.append(metrics)
+        metricsHistory = metricsHistoryStore.snapshot()
         snapshot.updatedAt = Date()
         rebuildLocalSnapshot()
     }
@@ -158,14 +249,6 @@ public final class MonitoringService {
         snapshot.docker = docker
         snapshot.updatedAt = Date()
         rebuildLocalSnapshot()
-    }
-
-    public func refreshDocker() async {
-        await collectDocker()
-    }
-
-    public func fetchDockerLogs(container: String, tail: Int = 200) async -> DockerLogsResult {
-        await dockerMonitor.fetchLogs(container: container, tail: tail)
     }
 
     private func runHealthCheck(for target: HealthCheckTarget) async {

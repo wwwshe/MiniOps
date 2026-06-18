@@ -3,6 +3,7 @@ import MiniOpsKit
 
 struct SettingsView: View {
     @Bindable var settings: AppSettings
+    @Bindable var preferences: ClientPreferences
     @Bindable var monitoringService: MonitoringService
     var onMonitoringRestart: () -> Void
 
@@ -13,27 +14,64 @@ struct SettingsView: View {
     @State private var discoveryMessageKind: DiscoveryMessageKind = .idle
     @State private var remoteDockerPath: String = ""
     @State private var remoteDockerStatus: String?
+    @State private var configPasteText = ""
+    @State private var healthCheckTargets: [APIHealthCheckTargetItem] = []
+    @State private var healthCheckStatus: String?
+    @State private var showAddHealthCheck = false
+    @State private var editingTarget: HealthCheckTarget?
 
     private enum DiscoveryMessageKind {
-        case idle
-        case loading
-        case success
-        case failure
+        case idle, loading, success, failure
     }
 
     var body: some View {
+        TabView {
+            connectionTab
+                .tabItem { Label("서버", systemImage: "network") }
+            dockerTab
+                .tabItem { Label("Docker", systemImage: "shippingbox") }
+            healthCheckTab
+                .tabItem { Label("Health Check", systemImage: "heart.text.square") }
+            notificationsTab
+                .tabItem { Label("알림", systemImage: "bell") }
+        }
+        .frame(width: 560, height: 480)
+        .sheet(isPresented: $showAddHealthCheck) {
+            HealthCheckEditorView(
+                target: HealthCheckTarget(name: "", urlString: "http://"),
+                isNew: true
+            ) { target in
+                Task { await addHealthCheck(target) }
+            }
+        }
+        .sheet(item: $editingTarget) { target in
+            HealthCheckEditorView(target: target, isNew: false) { updated in
+                Task { await addHealthCheck(updated) }
+            }
+        }
+    }
+
+    private var connectionTab: some View {
         Form {
             Section {
-                Text("맥미니 서버(miniopsd) 상태를 조회합니다. 서버는 Homebrew로 설치하세요: brew install miniops")
+                Text("맥미니(miniopsd) API에 연결합니다. Token은 맥미니에서 `miniopsd --print-config`로 확인하세요.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Section("원격 서버 (같은 Wi‑Fi)") {
-                Text("같은 Wi‑Fi의 Mac Mini를 찾거나, LAN URL과 API Token을 입력하세요. URL은 반드시 http:// 입니다 (HTTPS 아님).")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            Section("설정 붙여넣기") {
+                TextEditor(text: $configPasteText)
+                    .font(.system(.caption, design: .monospaced))
+                    .frame(height: 80)
+                Button("miniopsd --print-config에서 가져오기") {
+                    let parsed = ServerConfigPasteParser.parse(configPasteText)
+                    if let url = parsed.url { settings.remoteServerBaseURL = url }
+                    if let token = parsed.token { settings.remoteServerToken = token }
+                    connectionTestResult = parsed.url != nil || parsed.token != nil ? "✓ URL/Token 적용됨" : "✗ lan_url 또는 api_token 없음"
+                }
+            }
 
+            Section("원격 서버 (같은 Wi‑Fi)") {
                 HStack {
                     Button(isDiscovering ? "찾는 중…" : "LAN에서 서버 찾기") {
                         Task { await discoverServers() }
@@ -61,24 +99,23 @@ struct SettingsView: View {
                 }
 
                 TextField("서버 이름", text: $settings.remoteServerName)
-                    .textFieldStyle(.roundedBorder)
-
                 TextField("서버 URL", text: $settings.remoteServerBaseURL, prompt: Text("http://192.168.0.10:8787"))
-                    .textFieldStyle(.roundedBorder)
                     .onSubmit { normalizeRemoteURL() }
-
                 SecureField("API Token", text: $settings.remoteServerToken)
-                    .textFieldStyle(.roundedBorder)
 
                 HStack {
-                    Button("연결 테스트") {
-                        Task { await testConnection() }
-                    }
+                    Button("연결 테스트") { Task { await testConnection() } }
                     if let connectionTestResult {
                         Text(connectionTestResult)
                             .font(.caption)
                             .foregroundStyle(connectionTestResult.hasPrefix("✓") ? .green : .red)
                     }
+                }
+
+                if connectionTestResult?.hasPrefix("✓") == true {
+                    Text("연결되었습니다. 메뉴바 아이콘을 눌러 서버 상태를 확인하세요.")
+                        .font(.caption)
+                        .foregroundStyle(.green)
                 }
             }
             .onChange(of: settings.remoteServerBaseURL) { _, newValue in
@@ -89,12 +126,20 @@ struct SettingsView: View {
                 onMonitoringRestart()
             }
             .onChange(of: settings.remoteServerToken) { _, _ in onMonitoringRestart() }
+        }
+        .formStyle(.grouped)
+        .padding()
+    }
 
-            Section("원격 서버 Docker") {
-                Text("불러오기로 맥미니에서 docker 경로를 찾고, 연결 테스트로 서버에 적용한 뒤 동작을 확인합니다.")
+    private var dockerTab: some View {
+        Form {
+            Section {
+                Text("맥미니 서버의 Docker CLI 경로를 설정합니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
 
+            Section("원격 서버 Docker") {
                 if let serverDockerError = monitoringService.snapshot.docker.errorMessage,
                    !monitoringService.snapshot.docker.isAvailable {
                     Text("서버 Docker: \(serverDockerError)")
@@ -103,15 +148,10 @@ struct SettingsView: View {
                 }
 
                 TextField("Docker CLI 경로", text: $remoteDockerPath, prompt: Text("/usr/local/bin/docker"))
-                    .textFieldStyle(.roundedBorder)
 
                 HStack {
-                    Button("서버에서 불러오기") {
-                        Task { await loadRemoteDockerPath() }
-                    }
-                    Button("연결 테스트") {
-                        Task { await testRemoteDocker() }
-                    }
+                    Button("서버에서 불러오기") { Task { await loadRemoteDockerPath() } }
+                    Button("연결 테스트") { Task { await testRemoteDocker() } }
                 }
 
                 if let remoteDockerStatus {
@@ -126,17 +166,81 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
-        .frame(width: 520, height: 420)
+    }
+
+    private var healthCheckTab: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Health Check는 맥미니 서버에서 실행됩니다. 여기서 등록하면 서버에 저장됩니다.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Text("등록된 Health Check")
+                    .font(.headline)
+                Spacer()
+                Button("새로고침") { Task { await loadHealthChecks() } }
+                Button("추가") { showAddHealthCheck = true }
+            }
+
+            if let healthCheckStatus {
+                Text(healthCheckStatus)
+                    .font(.caption)
+                    .foregroundStyle(healthCheckStatus.hasPrefix("✓") ? .green : .red)
+            }
+
+            if healthCheckTargets.isEmpty {
+                ContentUnavailableView("Health Check 없음", systemImage: "heart.slash")
+            } else {
+                List {
+                    ForEach(healthCheckTargets, id: \.id) { target in
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(target.name).font(.body.weight(.medium))
+                                Text(target.url).font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button("삭제") { Task { await deleteHealthCheck(id: target.id) } }
+                        }
+                    }
+                }
+            }
+        }
+        .padding()
+        .task { await loadHealthChecks() }
+    }
+
+    private var notificationsTab: some View {
+        Form {
+            Section {
+                Text("서버 상태가 임계치를 넘거나 Docker/Health Check에 문제가 생기면 macOS 알림을 보냅니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("알림") {
+                Toggle("알림 사용", isOn: $preferences.notificationsEnabled)
+                    .onChange(of: preferences.notificationsEnabled) { _, enabled in
+                        if enabled { NotificationMonitor.shared.requestAuthorizationIfNeeded() }
+                    }
+                Toggle("경고 알림", isOn: $preferences.notifyOnWarning)
+                Toggle("장애 알림", isOn: $preferences.notifyOnCritical)
+            }
+
+            Section("임계치 (%)") {
+                Stepper("CPU: \(Int(preferences.cpuThreshold))%", value: $preferences.cpuThreshold, in: 50...100, step: 5)
+                Stepper("Memory: \(Int(preferences.memoryThreshold))%", value: $preferences.memoryThreshold, in: 50...100, step: 5)
+                Stepper("Disk: \(Int(preferences.diskThreshold))%", value: $preferences.diskThreshold, in: 50...100, step: 5)
+            }
+        }
+        .formStyle(.grouped)
+        .padding()
     }
 
     private var discoveryMessageColor: Color {
         switch discoveryMessageKind {
-        case .idle:
-            return .secondary
-        case .loading, .success:
-            return .green
-        case .failure:
-            return .red
+        case .idle: return .secondary
+        case .loading, .success: return .green
+        case .failure: return .red
         }
     }
 
@@ -148,33 +252,15 @@ struct SettingsView: View {
     private func loadRemoteDockerPath(silent: Bool = false) async {
         let baseURL = settings.remoteServerBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let token = settings.remoteServerToken.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !baseURL.isEmpty, !token.isEmpty else {
-            if !silent {
-                remoteDockerStatus = "서버 URL과 API Token을 먼저 입력하세요."
-            }
-            return
-        }
+        guard !baseURL.isEmpty, !token.isEmpty else { return }
 
         let client = RemoteSettingsClient()
         do {
             let response = try await client.fetchSettings(baseURL: baseURL, token: token)
-
-            if let detected = response.detectedDockerPath, !detected.isEmpty {
-                remoteDockerPath = detected
-                if !silent {
-                    remoteDockerStatus = "✓ 서버에서 docker를 찾았습니다: \(detected)"
-                }
-            } else {
-                remoteDockerPath = response.dockerPath
-                if !silent {
-                    remoteDockerStatus = "✗ 서버에서 docker를 찾지 못했습니다. Docker Desktop 실행 여부를 확인하세요."
-                }
-            }
+            remoteDockerPath = response.detectedDockerPath ?? response.dockerPath
+            if !silent { remoteDockerStatus = "✓ Docker 경로 불러옴" }
         } catch {
-            if !silent {
-                remoteDockerStatus = "✗ \(error.localizedDescription)"
-            }
+            if !silent { remoteDockerStatus = "✗ \(error.localizedDescription)" }
         }
     }
 
@@ -182,14 +268,8 @@ struct SettingsView: View {
         let baseURL = settings.remoteServerBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let token = settings.remoteServerToken.trimmingCharacters(in: .whitespacesAndNewlines)
         let path = remoteDockerPath.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !baseURL.isEmpty, !token.isEmpty else {
-            remoteDockerStatus = "서버 URL과 API Token을 먼저 입력하세요."
-            return
-        }
-
-        guard !path.isEmpty else {
-            remoteDockerStatus = "Docker CLI 경로를 입력하거나 불러오기를 누르세요."
+        guard !baseURL.isEmpty, !token.isEmpty, !path.isEmpty else {
+            remoteDockerStatus = "URL, Token, Docker 경로를 입력하세요."
             return
         }
 
@@ -197,22 +277,7 @@ struct SettingsView: View {
         do {
             let saved = try await client.updateDockerPath(baseURL: baseURL, token: token, dockerPath: path)
             remoteDockerPath = saved.dockerPath
-
-            let docker: APIDockerResponse
-            if let refreshed = saved.docker {
-                docker = refreshed
-            } else {
-                docker = try await client.fetchDocker(baseURL: baseURL, token: token)
-            }
-
-            if docker.available {
-                let count = docker.containers.count
-                remoteDockerStatus = count > 0
-                    ? "✓ Docker 연결 성공 (\(count)개 컨테이너)"
-                    : "✓ Docker 연결 성공 (실행 중인 컨테이너 없음)"
-            } else {
-                remoteDockerStatus = "✗ \(docker.errorMessage ?? "Docker를 사용할 수 없습니다.")"
-            }
+            remoteDockerStatus = saved.docker?.available == true ? "✓ Docker 연결 성공" : "✗ Docker 사용 불가"
             onMonitoringRestart()
         } catch {
             remoteDockerStatus = "✗ \(error.localizedDescription)"
@@ -225,31 +290,23 @@ struct SettingsView: View {
         discoveryMessage = "같은 Wi‑Fi에서 서버를 찾는 중…"
         defer { isDiscovering = false }
 
-        let browser = MiniOpsServerBrowser()
-        let servers = await browser.discover(port: 8787)
-        discoveredServers = servers
-
-        if servers.count == 1, let server = servers.first {
+        discoveredServers = await MiniOpsServerBrowser().discover(port: 8787)
+        if discoveredServers.count == 1, let server = discoveredServers.first {
             selectDiscoveredServer(server.baseURL)
             discoveryMessageKind = .success
             discoveryMessage = "서버 발견: \(server.baseURL)"
-        } else if servers.isEmpty {
+        } else if discoveredServers.isEmpty {
             discoveryMessageKind = .failure
-            discoveryMessage = "서버를 찾지 못했습니다. miniopsd 실행·로컬 네트워크 권한을 확인하세요."
+            discoveryMessage = "서버를 찾지 못했습니다."
         } else {
             discoveryMessageKind = .success
-            discoveryMessage = "\(servers.count)개 서버 발견 — 목록에서 선택하세요."
+            discoveryMessage = "\(discoveredServers.count)개 서버 발견"
         }
     }
 
     private func selectDiscoveredServer(_ baseURL: String) {
-        guard let server = discoveredServers.first(where: { $0.baseURL == baseURL }) else {
-            settings.remoteServerBaseURL = baseURL
-            onMonitoringRestart()
-            return
-        }
-        settings.remoteServerBaseURL = server.baseURL
-        if settings.remoteServerName.isEmpty || settings.remoteServerName == "Mac Mini Server" {
+        settings.remoteServerBaseURL = baseURL
+        if let server = discoveredServers.first(where: { $0.baseURL == baseURL }) {
             settings.remoteServerName = server.name
         }
         onMonitoringRestart()
@@ -257,9 +314,8 @@ struct SettingsView: View {
 
     private func testConnection() async {
         normalizeRemoteURL()
-        let client = RemoteMonitoringClient()
         do {
-            _ = try await client.fetchSnapshot(
+            _ = try await RemoteMonitoringClient().fetchSnapshot(
                 baseURL: settings.remoteServerBaseURL,
                 token: settings.remoteServerToken
             )
@@ -267,6 +323,60 @@ struct SettingsView: View {
             onMonitoringRestart()
         } catch {
             connectionTestResult = "✗ \(error.localizedDescription)"
+        }
+    }
+
+    private func loadHealthChecks() async {
+        let baseURL = settings.remoteServerBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let token = settings.remoteServerToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !baseURL.isEmpty, !token.isEmpty else {
+            healthCheckStatus = "서버 URL과 Token을 먼저 설정하세요."
+            return
+        }
+
+        do {
+            let response = try await RemoteSettingsClient().fetchHealthCheckTargets(baseURL: baseURL, token: token)
+            healthCheckTargets = response.targets
+            healthCheckStatus = "✓ \(response.targets.count)개 Health Check"
+        } catch {
+            healthCheckStatus = "✗ \(error.localizedDescription)"
+        }
+    }
+
+    private func addHealthCheck(_ target: HealthCheckTarget) async {
+        let baseURL = settings.remoteServerBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let token = settings.remoteServerToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        let item = APIHealthCheckTargetItem(
+            id: target.id.uuidString,
+            name: target.name,
+            url: target.urlString,
+            intervalSeconds: target.intervalSeconds,
+            timeoutSeconds: target.timeoutSeconds,
+            expectedStatusCode: target.expectedStatusCode
+        )
+
+        do {
+            let response = try await RemoteSettingsClient().addHealthCheckTarget(baseURL: baseURL, token: token, target: item)
+            healthCheckTargets = response.targets
+            healthCheckStatus = "✓ Health Check 저장됨"
+            onMonitoringRestart()
+        } catch {
+            healthCheckStatus = "✗ \(error.localizedDescription)"
+        }
+    }
+
+    private func deleteHealthCheck(id: String) async {
+        let baseURL = settings.remoteServerBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let token = settings.remoteServerToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let uuid = UUID(uuidString: id) else { return }
+
+        do {
+            let response = try await RemoteSettingsClient().deleteHealthCheckTarget(baseURL: baseURL, token: token, id: uuid)
+            healthCheckTargets = response.targets
+            healthCheckStatus = "✓ 삭제됨"
+            onMonitoringRestart()
+        } catch {
+            healthCheckStatus = "✗ \(error.localizedDescription)"
         }
     }
 }

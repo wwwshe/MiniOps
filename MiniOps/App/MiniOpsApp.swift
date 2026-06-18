@@ -8,6 +8,8 @@ struct MiniOpsApp: App {
 
     @State private var monitoringService: MonitoringService
     @State private var settings = AppSettings.shared
+    @State private var preferences = ClientPreferences.shared
+    @State private var showOnboarding = false
 
     init() {
         AppSettings.shared.monitoringMode = .client
@@ -15,11 +17,24 @@ struct MiniOpsApp: App {
         let service = MonitoringService()
         AppContainer.monitoringService = service
         _monitoringService = State(initialValue: service)
+
+        let prefs = ClientPreferences.shared
+        let appSettings = AppSettings.shared
+        _showOnboarding = State(initialValue: !prefs.onboardingCompleted && (
+            appSettings.remoteServerBaseURL.isEmpty || appSettings.remoteServerToken.isEmpty
+        ))
     }
 
     var body: some Scene {
         MenuBarExtra {
-            MenuBarView(monitoringService: monitoringService)
+            MenuBarView(monitoringService: monitoringService, settings: settings)
+                .background(WindowLauncher(showOnboarding: $showOnboarding))
+                .onChange(of: monitoringService.snapshot.updatedAt) { _, _ in
+                    NotificationMonitor.shared.evaluate(monitoringService: monitoringService)
+                }
+                .onChange(of: monitoringService.connectionError) { _, _ in
+                    NotificationMonitor.shared.evaluate(monitoringService: monitoringService)
+                }
         } label: {
             Image(systemName: "server.rack")
                 .symbolRenderingMode(.palette)
@@ -30,22 +45,32 @@ struct MiniOpsApp: App {
         Window("MiniOps 설정", id: "settings") {
             SettingsView(
                 settings: settings,
+                preferences: preferences,
                 monitoringService: monitoringService,
                 onMonitoringRestart: { monitoringService.restart() }
             )
-            .onAppear {
-                NSApp.setActivationPolicy(.regular)
-            }
+            .onAppear { NSApp.setActivationPolicy(.regular) }
         }
-        .defaultSize(width: 520, height: 420)
+        .defaultSize(width: 560, height: 480)
+        .windowResizability(.contentSize)
+
+        Window("MiniOps 시작하기", id: "onboarding") {
+            OnboardingView(
+                settings: settings,
+                preferences: preferences,
+                monitoringService: monitoringService
+            ) {
+                showOnboarding = false
+            }
+            .onAppear { NSApp.setActivationPolicy(.regular) }
+        }
+        .defaultSize(width: 560, height: 460)
         .windowResizability(.contentSize)
 
         WindowGroup(id: "docker-logs", for: DockerLogRequest.self) { $request in
             if let request {
                 DockerLogsView(request: request, settings: settings)
-                    .onAppear {
-                        NSApp.setActivationPolicy(.regular)
-                    }
+                    .onAppear { NSApp.setActivationPolicy(.regular) }
             }
         }
         .defaultSize(width: 720, height: 480)
@@ -53,9 +78,7 @@ struct MiniOpsApp: App {
     }
 
     private var statusColor: Color {
-        if monitoringService.connectionError != nil {
-            return .gray
-        }
+        if monitoringService.connectionError != nil { return .gray }
         switch monitoringService.snapshot.overall {
         case .healthy: return .green
         case .warning: return .yellow
@@ -69,9 +92,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         AppContainer.monitoringService?.start()
+        NotificationMonitor.shared.requestAuthorizationIfNeeded()
+
+        NotificationCenter.default.addObserver(
+            forName: .openMiniOpsSettings,
+            object: nil,
+            queue: .main
+        ) { _ in
+            NSApp.setActivationPolicy(.regular)
+            NSApp.activate(ignoringOtherApps: true)
+            AppContainer.openSettings?()
+            if let window = NSApp.windows.first(where: SettingsWindowPresenter.isSettingsWindow) {
+                window.makeKeyAndOrderFront(nil)
+            }
+        }
+
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard event.modifierFlags.contains(.command),
+                  event.charactersIgnoringModifiers?.lowercased() == "," else {
+                return event
+            }
+            NotificationCenter.default.post(name: .openMiniOpsSettings, object: nil)
+            return nil
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+}
+
+struct WindowLauncher: View {
+    @Environment(\.openWindow) private var openWindow
+    @Binding var showOnboarding: Bool
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onAppear {
+                AppContainer.openSettings = {
+                    openWindow(id: "settings")
+                }
+                if showOnboarding {
+                    openWindow(id: "onboarding")
+                    showOnboarding = false
+                }
+            }
     }
 }

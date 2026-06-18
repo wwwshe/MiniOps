@@ -68,6 +68,11 @@ public final class RemoteMonitoringClient: @unchecked Sendable {
         return mapSnapshot(status: status, metrics: metrics, docker: docker, health: health)
     }
 
+    public func fetchMetricsHistory(baseURL: String, token: String) async throws -> APIMetricsHistoryResponse {
+        let root = try normalizedBaseURL(baseURL)
+        return try await fetch(APIMetricsHistoryResponse.self, base: root, path: "/api/v1/metrics/history", token: token)
+    }
+
     private func normalizedBaseURL(_ baseURL: String) throws -> URL {
         guard let url = RemoteAPIURL.normalize(baseURL) else {
             throw RemoteMonitoringError.invalidBaseURL

@@ -19,28 +19,84 @@ public final class APIRouter {
             return .unauthorized()
         }
 
-        switch (request.method, request.path) {
-        case ("GET", "/api/v1/status"):
-            return .json(makeStatusResponse())
-        case ("GET", "/api/v1/metrics"):
-            return .json(makeMetricsResponse())
-        case ("GET", "/api/v1/docker"):
-            return .json(makeDockerResponse())
-        case ("GET", let path) where path.hasPrefix("/api/v1/docker/") && path.hasSuffix("/logs"):
-            return await fetchDockerLogs(request: request, path: path)
-        case ("GET", "/api/v1/health-checks"):
-            return .json(makeHealthChecksResponse())
-        case ("GET", "/api/v1/settings"):
-            return .json(makeSettingsResponse())
-        case ("PATCH", "/api/v1/settings"):
-            return await updateSettings(request: request)
-        case ("POST", "/api/v1/settings"):
-            return await updateSettings(request: request)
-        case ("PUT", "/api/v1/settings"):
-            return await updateSettings(request: request)
+        switch request.method {
+        case "GET":
+            return await handleGet(request)
+        case "POST":
+            return await handlePost(request)
+        case "PUT":
+            return await handlePut(request)
+        case "PATCH":
+            return await handlePatch(request)
+        case "DELETE":
+            return await handleDelete(request)
         default:
             return .notFound()
         }
+    }
+
+    private func handleGet(_ request: HTTPRequest) async -> HTTPResponse {
+        switch request.path {
+        case "/api/v1/status":
+            return .json(makeStatusResponse())
+        case "/api/v1/metrics":
+            return .json(makeMetricsResponse())
+        case "/api/v1/metrics/history":
+            return .json(makeMetricsHistoryResponse())
+        case "/api/v1/docker":
+            return .json(makeDockerResponse())
+        case "/api/v1/health-checks":
+            return .json(makeHealthChecksResponse())
+        case "/api/v1/health-check-targets":
+            return .json(makeHealthCheckTargetsResponse())
+        case "/api/v1/settings":
+            return .json(makeSettingsResponse())
+        default:
+            if request.path.hasPrefix("/api/v1/docker/") && request.path.hasSuffix("/logs") {
+                return await fetchDockerLogs(request: request, path: request.path)
+            }
+            return .notFound()
+        }
+    }
+
+    private func handlePost(_ request: HTTPRequest) async -> HTTPResponse {
+        if request.path == "/api/v1/settings" {
+            return await updateSettings(request: request)
+        }
+        if request.path == "/api/v1/health-check-targets" {
+            return await addHealthCheckTarget(request: request)
+        }
+        if request.path.hasPrefix("/api/v1/docker/") && request.path.hasSuffix("/restart") {
+            return await dockerAction(request: request, path: request.path, suffix: "/restart", action: "restart")
+        }
+        if request.path.hasPrefix("/api/v1/docker/") && request.path.hasSuffix("/stop") {
+            return await dockerAction(request: request, path: request.path, suffix: "/stop", action: "stop")
+        }
+        return .notFound()
+    }
+
+    private func handlePut(_ request: HTTPRequest) async -> HTTPResponse {
+        if request.path == "/api/v1/settings" {
+            return await updateSettings(request: request)
+        }
+        if request.path == "/api/v1/health-check-targets" {
+            return await replaceHealthCheckTargets(request: request)
+        }
+        return .notFound()
+    }
+
+    private func handlePatch(_ request: HTTPRequest) async -> HTTPResponse {
+        if request.path == "/api/v1/settings" {
+            return await updateSettings(request: request)
+        }
+        return .notFound()
+    }
+
+    private func handleDelete(_ request: HTTPRequest) async -> HTTPResponse {
+        if request.path.hasPrefix("/api/v1/health-check-targets/") {
+            return deleteHealthCheckTarget(path: request.path)
+        }
+        return .notFound()
     }
 
     private func makeSettingsResponse(docker: APIDockerResponse? = nil) -> APISettingsResponse {
@@ -73,18 +129,7 @@ public final class APIRouter {
     }
 
     private func fetchDockerLogs(request: HTTPRequest, path: String) async -> HTTPResponse {
-        let prefix = "/api/v1/docker/"
-        let suffix = "/logs"
-        guard path.count > prefix.count + suffix.count else {
-            return .badRequest("Container name is required")
-        }
-
-        let start = path.index(path.startIndex, offsetBy: prefix.count)
-        let end = path.index(path.endIndex, offsetBy: -suffix.count)
-        let rawContainer = String(path[start..<end])
-        let container = rawContainer.removingPercentEncoding ?? rawContainer
-
-        guard !container.isEmpty else {
+        guard let container = containerName(from: path, suffix: "/logs") else {
             return .badRequest("Container name is required")
         }
 
@@ -99,6 +144,109 @@ public final class APIRouter {
                 errorMessage: result.errorMessage,
                 collectedAt: result.collectedAt
             )
+        )
+    }
+
+    private func dockerAction(request: HTTPRequest, path: String, suffix: String, action: String) async -> HTTPResponse {
+        guard let container = containerName(from: path, suffix: suffix) else {
+            return .badRequest("Container name is required")
+        }
+
+        let result = await monitoringService.controlDockerContainer(container, action: action)
+        await monitoringService.refreshDocker()
+
+        return .json(
+            APIDockerActionResponse(
+                container: result.container,
+                action: result.action,
+                success: result.success,
+                message: result.message,
+                docker: makeDockerResponse(),
+                collectedAt: result.collectedAt
+            )
+        )
+    }
+
+    private func containerName(from path: String, suffix: String) -> String? {
+        let prefix = "/api/v1/docker/"
+        guard path.hasPrefix(prefix), path.hasSuffix(suffix) else { return nil }
+        guard path.count > prefix.count + suffix.count else { return nil }
+
+        let start = path.index(path.startIndex, offsetBy: prefix.count)
+        let end = path.index(path.endIndex, offsetBy: -suffix.count)
+        let raw = String(path[start..<end])
+        let decoded = raw.removingPercentEncoding ?? raw
+        return decoded.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : decoded
+    }
+
+    private func makeHealthCheckTargetsResponse() -> APIHealthCheckTargetsResponse {
+        APIHealthCheckTargetsResponse(
+            targets: settings.healthCheckTargets.map(mapHealthCheckTarget)
+        )
+    }
+
+    private func replaceHealthCheckTargets(request: HTTPRequest) async -> HTTPResponse {
+        guard let body = decodeHealthCheckTargetsBody(request) else {
+            return .badRequest("Invalid health check targets body")
+        }
+
+        monitoringService.replaceHealthCheckTargets(body.targets.map(mapHealthCheckTargetItem))
+        return .json(makeHealthCheckTargetsResponse())
+    }
+
+    private func addHealthCheckTarget(request: HTTPRequest) async -> HTTPResponse {
+        guard !request.body.isEmpty else {
+            return .badRequest("Request body is required")
+        }
+
+        let decoder = JSONDecoder()
+        guard let item = try? decoder.decode(APIHealthCheckTargetItem.self, from: request.body) else {
+            return .badRequest("Invalid health check target body")
+        }
+
+        let target = mapHealthCheckTargetItem(item)
+        monitoringService.addHealthCheckTarget(target)
+        return .json(makeHealthCheckTargetsResponse())
+    }
+
+    private func deleteHealthCheckTarget(path: String) -> HTTPResponse {
+        let prefix = "/api/v1/health-check-targets/"
+        guard path.hasPrefix(prefix) else { return .notFound() }
+
+        let rawID = String(path.dropFirst(prefix.count))
+        let idString = rawID.removingPercentEncoding ?? rawID
+        guard let id = UUID(uuidString: idString) else {
+            return .badRequest("Invalid target id")
+        }
+
+        monitoringService.removeHealthCheckTarget(id: id)
+        return .json(makeHealthCheckTargetsResponse())
+    }
+
+    private func decodeHealthCheckTargetsBody(_ request: HTTPRequest) -> APIHealthCheckTargetsPutBody? {
+        guard !request.body.isEmpty else { return nil }
+        return try? JSONDecoder().decode(APIHealthCheckTargetsPutBody.self, from: request.body)
+    }
+
+    private func mapHealthCheckTarget(_ target: HealthCheckTarget) -> APIHealthCheckTargetItem {
+        APIHealthCheckTargetItem(
+            id: target.id.uuidString,
+            name: target.name,
+            url: target.urlString,
+            intervalSeconds: target.intervalSeconds,
+            timeoutSeconds: target.timeoutSeconds,
+            expectedStatusCode: target.expectedStatusCode
+        )
+    }
+
+    private func mapHealthCheckTargetItem(_ item: APIHealthCheckTargetItem) -> HealthCheckTarget {
+        HealthCheckTarget(
+            id: UUID(uuidString: item.id) ?? UUID(),
+            name: item.name,
+            urlString: item.url,
+            intervalSeconds: item.intervalSeconds,
+            timeoutSeconds: item.timeoutSeconds,
+            expectedStatusCode: item.expectedStatusCode
         )
     }
 
@@ -137,6 +285,10 @@ public final class APIRouter {
             disk: round(metrics.diskUsagePercent * 10) / 10,
             collectedAt: metrics.collectedAt
         )
+    }
+
+    private func makeMetricsHistoryResponse() -> APIMetricsHistoryResponse {
+        APIMetricsHistoryResponse(points: monitoringService.metricsHistory)
     }
 
     private func makeDockerResponse() -> APIDockerResponse {
@@ -222,12 +374,12 @@ public struct APIDockerResponse: Codable, Sendable {
     public let collectedAt: Date
 }
 
-public struct APIDockerContainerItem: Codable {
-    let id: String
-    let name: String
-    let status: String
-    let state: String
-    let isRunning: Bool
+public struct APIDockerContainerItem: Codable, Sendable {
+    public let id: String
+    public let name: String
+    public let status: String
+    public let state: String
+    public let isRunning: Bool
 }
 
 public struct APIDockerLogsResponse: Codable, Sendable {
@@ -235,6 +387,15 @@ public struct APIDockerLogsResponse: Codable, Sendable {
     public let logs: String
     public let tail: Int
     public let errorMessage: String?
+    public let collectedAt: Date
+}
+
+public struct APIDockerActionResponse: Codable, Sendable {
+    public let container: String
+    public let action: String
+    public let success: Bool
+    public let message: String?
+    public let docker: APIDockerResponse?
     public let collectedAt: Date
 }
 
@@ -252,6 +413,39 @@ public struct APIHealthCheckItem: Codable {
     let lastError: String?
     let lastCheckedAt: Date
     let consecutiveFailures: Int
+}
+
+public struct APIHealthCheckTargetItem: Codable, Sendable {
+    public let id: String
+    public let name: String
+    public let url: String
+    public let intervalSeconds: Int
+    public let timeoutSeconds: Int
+    public let expectedStatusCode: Int
+
+    public init(
+        id: String,
+        name: String,
+        url: String,
+        intervalSeconds: Int,
+        timeoutSeconds: Int,
+        expectedStatusCode: Int
+    ) {
+        self.id = id
+        self.name = name
+        self.url = url
+        self.intervalSeconds = intervalSeconds
+        self.timeoutSeconds = timeoutSeconds
+        self.expectedStatusCode = expectedStatusCode
+    }
+}
+
+public struct APIHealthCheckTargetsResponse: Codable, Sendable {
+    public let targets: [APIHealthCheckTargetItem]
+}
+
+public struct APIHealthCheckTargetsPutBody: Codable, Sendable {
+    public let targets: [APIHealthCheckTargetItem]
 }
 
 public struct APISettingsResponse: Codable, Sendable {

@@ -67,6 +67,30 @@ public final class RemoteSettingsClient: @unchecked Sendable {
         return try await send(method: "GET", path: path, baseURL: baseURL, token: token, body: nil, timeout: 30)
     }
 
+    public func restartDockerContainer(baseURL: String, token: String, container: String) async throws -> APIDockerActionResponse {
+        let encoded = container.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? container
+        return try await send(method: "POST", path: "/api/v1/docker/\(encoded)/restart", baseURL: baseURL, token: token, body: nil, timeout: 30)
+    }
+
+    public func stopDockerContainer(baseURL: String, token: String, container: String) async throws -> APIDockerActionResponse {
+        let encoded = container.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? container
+        return try await send(method: "POST", path: "/api/v1/docker/\(encoded)/stop", baseURL: baseURL, token: token, body: nil, timeout: 30)
+    }
+
+    public func fetchHealthCheckTargets(baseURL: String, token: String) async throws -> APIHealthCheckTargetsResponse {
+        try await send(method: "GET", path: "/api/v1/health-check-targets", baseURL: baseURL, token: token, body: nil)
+    }
+
+    public func addHealthCheckTarget(baseURL: String, token: String, target: APIHealthCheckTargetItem) async throws -> APIHealthCheckTargetsResponse {
+        let body = try encoder.encode(target)
+        return try await send(method: "POST", path: "/api/v1/health-check-targets", baseURL: baseURL, token: token, body: body)
+    }
+
+    public func deleteHealthCheckTarget(baseURL: String, token: String, id: UUID) async throws -> APIHealthCheckTargetsResponse {
+        let encoded = id.uuidString.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id.uuidString
+        return try await send(method: "DELETE", path: "/api/v1/health-check-targets/\(encoded)", baseURL: baseURL, token: token, body: nil)
+    }
+
     private func send<T: Decodable>(
         method: String,
         path: String,

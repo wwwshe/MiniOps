@@ -4,13 +4,17 @@ AI 기반 Mac Mini 서버 모니터링 및 복구 도구
 
 MiniOps는 Mac Mini 홈서버 운영자를 위한 AI 기반 운영 도우미입니다. CPU, 메모리, Docker 상태를 모니터링하고 Health Check를 수행합니다. 같은 Wi‑Fi(LAN)에서 HTTP API로 상태를 조회할 수 있습니다.
 
-## v0.1 기능
+## v0.1.5 기능 (현재)
 
 - **miniopsd** — GUI 없는 서버 에이전트 (Homebrew 설치 가능)
-- **메뉴바 앱** — 같은 Wi‑Fi의 다른 Mac에서 서버 상태 조회 (클라이언트)
-- **Health Check** — 커스텀 URL 주기적 확인 (서버에서 설정)
-- **로컬 HTTP API** — LAN 접근용 REST API (Bearer Token 인증)
-- **Local First** — 모든 데이터는 Mac Mini에서 로컬 처리
+- **메뉴바 앱** — 같은 Wi‑Fi의 다른 Mac에서 서버 상태 조회 (클라이언트 전용)
+- **온보딩 마법사** — LAN 찾기 → Token 붙여넣기 → Docker 설정
+- **메뉴바 UX** — 요약 한 줄, 섹션 접기, 메트릭 스파크라인, 마지막 갱신 시간
+- **Docker 로그 뷰어** — 검색, 자동 새로고침, 맨 아래 고정, 복사/저장
+- **Docker 제어** — 원격 restart/stop
+- **Health Check** — 원격 등록/삭제 (서버에서 실행)
+- **macOS 알림** — CPU/Memory/Disk 임계치, 컨테이너 중지, Health Check 실패
+- **메트릭 히스토리** — 최근 1시간 (5초 간격)
 
 ## 두 가지 구성
 
@@ -28,53 +32,14 @@ brew trust wwwshe/miniops
 brew install miniops
 brew services start miniops
 
-# LAN URL · API Token 확인
 miniopsd --print-config
 ```
 
-자세한 내용: [docs/server-install.md](docs/server-install.md)
+## 다른 Mac (클라이언트) — 메뉴바 앱
 
-## 요구 사항
-
-- macOS 14.0+
-- Xcode 15+ (빌드 시)
-- Docker Desktop (Docker 모니터링 사용 시, 선택)
-
-## 빌드 및 실행
-
-```bash
-git clone https://github.com/wwwshe/MiniOps.git
-cd MiniOps
-open MiniOps.xcodeproj
-```
-
-Xcode에서 `MiniOps` 스킴을 선택하고 Run (⌘R).
-
-```bash
-xcodebuild -scheme MiniOps -configuration Debug -destination 'platform=macOS' build
-
-# 데몬 (SPM)
-swift build -c release --product miniopsd
-```
-
-## 사용법
-
-### Mac Mini (서버) — miniopsd
-
-GUI 없이 백그라운드로 실행합니다. 설정은 `miniopsd --print-config`로 확인합니다.
-
-### 다른 Mac (클라이언트) — 메뉴바 앱
-
-1. 설정에서 서버 URL + API Token 입력 → **연결 테스트**
-2. (선택) **LAN에서 서버 찾기**로 Bonjour/서브넷 스캔
-
-자세한 내용: [docs/remote-access.md](docs/remote-access.md)
-
-### 터미널 (curl)
-
-```bash
-curl -H "Authorization: Bearer <token>" http://192.168.0.10:8787/api/v1/status
-```
+1. 앱 실행 → 온보딩 마법사 또는 **설정 (⌘,)**
+2. `miniopsd --print-config` 출력 붙여넣기 또는 LAN에서 서버 찾기
+3. **연결 테스트** → Docker **연결 테스트** (선택)
 
 ## API 엔드포인트
 
@@ -83,20 +48,23 @@ curl -H "Authorization: Bearer <token>" http://192.168.0.10:8787/api/v1/status
 | `GET /api/v1/health` | API 헬스 (인증 불필요) |
 | `GET /api/v1/status` | 전체 상태 요약 |
 | `GET /api/v1/metrics` | CPU/Memory/Disk |
+| `GET /api/v1/metrics/history` | 메트릭 히스토리 (최근 1h) |
 | `GET /api/v1/docker` | Docker 컨테이너 |
-| `GET /api/v1/docker/{name}/logs` | Docker 컨테이너 로그 |
+| `GET /api/v1/docker/{name}/logs` | Docker 로그 |
+| `POST /api/v1/docker/{name}/restart` | Docker 재시작 |
+| `POST /api/v1/docker/{name}/stop` | Docker 중지 |
 | `GET /api/v1/health-checks` | Health Check 결과 |
+| `GET/POST/DELETE /api/v1/health-check-targets` | Health Check 설정 |
+| `GET/PATCH /api/v1/settings` | Docker 경로 등 |
 
 ## 프로젝트 구조
 
 ```
 MiniOps/
 ├── Packages/MiniOpsKit/   # SPM — Core, Monitoring, API
-├── Sources/miniopsd/      # 헤드리스 데몬 (SPM executable)
-├── MiniOps/             # Xcode — 메뉴바 앱 (Kit 의존)
-├── Package.swift        # miniopsd 빌드
-├── Formula/             # Homebrew formula
-└── docs/
+├── Sources/miniopsd/      # 헤드리스 데몬
+├── MiniOps/               # Xcode — 메뉴바 앱
+└── Formula/               # Homebrew
 ```
 
 ## 로드맵
@@ -104,14 +72,13 @@ MiniOps/
 | 버전 | 기능 |
 |------|------|
 | v0.1 | 메뉴바 + Health Check + LAN API |
-| v0.2 | 웹 대시보드 + 로그 수집 |
+| **v0.1.5** | **온보딩, 알림, Docker 제어, 메트릭 히스토리, UX 개선** |
+| v0.2 | 웹 대시보드, 로그 수집·보관, Health Check 편집 |
 | v0.3 | AI 로그 분석 (Ollama / Cloud) |
-| v0.4 | Slack 알림 |
+| v0.4 | Slack / Discord 알림 |
+| v0.5 | 다중 서버 프로필, 컨테이너별 CPU/Memory (`docker stats`) |
+| v0.6 | iOS/iPad 조회 앱 (선택) |
 
 ## 라이선스
 
 [MIT](LICENSE)
-
-## 기여
-
-Issue와 Pull Request를 환영합니다.
