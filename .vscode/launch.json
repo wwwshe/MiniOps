@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:MiniOps}",
+            "name": "Debug miniopsd",
+            "program": "${workspaceFolder:MiniOps}/.build/debug/miniopsd",
+            "preLaunchTask": "swift: Build Debug miniopsd"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:MiniOps}",
+            "name": "Release miniopsd",
+            "program": "${workspaceFolder:MiniOps}/.build/release/miniopsd",
+            "preLaunchTask": "swift: Build Release miniopsd"
+        }
+    ]
+}

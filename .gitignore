@@ -1,0 +1,26 @@
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xcscmblueprint
+xcuserdata/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Secrets
+.env
+.env.*
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/launch.json
+*.swp
+*~
