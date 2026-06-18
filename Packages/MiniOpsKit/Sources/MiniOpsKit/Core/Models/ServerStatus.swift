@@ -1,5 +1,33 @@
 import Foundation
 
+public struct LogAlert: Codable, Equatable, Sendable, Identifiable {
+    public let id: UUID
+    public let container: String
+    public let level: LogAlertLevel
+    public let message: String
+    public let detectedAt: Date
+
+    public init(id: UUID = UUID(), container: String, level: LogAlertLevel, message: String, detectedAt: Date = Date()) {
+        self.id = id
+        self.container = container
+        self.level = level
+        self.message = message
+        self.detectedAt = detectedAt
+    }
+
+    public enum LogAlertLevel: String, Codable, Sendable {
+        case warn
+        case error
+
+        public var displayName: String {
+            switch self {
+            case .warn: return "경고"
+            case .error: return "에러"
+            }
+        }
+    }
+}
+
 public enum OverallStatus: String, Codable, Sendable {
     case healthy
     case warning
@@ -19,6 +47,7 @@ public struct ServerStatusSnapshot: Codable, Equatable, Sendable {
     public var metrics: SystemMetrics
     public var docker: DockerSnapshot
     public var healthChecks: [HealthCheckResult]
+    public var logAlerts: [LogAlert]
     public var updatedAt: Date
 
     public static let empty = ServerStatusSnapshot(
@@ -26,6 +55,7 @@ public struct ServerStatusSnapshot: Codable, Equatable, Sendable {
         metrics: .empty,
         docker: .unavailable,
         healthChecks: [],
+        logAlerts: [],
         updatedAt: .distantPast
     )
 

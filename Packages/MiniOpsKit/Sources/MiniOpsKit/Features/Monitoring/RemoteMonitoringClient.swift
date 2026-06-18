@@ -55,22 +55,29 @@ public final class RemoteMonitoringClient: @unchecked Sendable {
     public func fetchSnapshot(baseURL: String, token: String) async throws -> ServerStatusSnapshot {
         let root = try normalizedBaseURL(baseURL)
 
-        async let statusTask = fetch(APIStatusResponse.self, base: root, path: "/api/v1/status", token: token)
-        async let metricsTask = fetch(APIMetricsResponse.self, base: root, path: "/api/v1/metrics", token: token)
-        async let dockerTask = fetch(APIDockerResponse.self, base: root, path: "/api/v1/docker", token: token)
-        async let healthTask = fetch(APIHealthChecksResponse.self, base: root, path: "/api/v1/health-checks", token: token)
+        async let statusTask  = fetch(APIStatusResponse.self,       base: root, path: "/api/v1/status",       token: token)
+        async let metricsTask = fetch(APIMetricsResponse.self,      base: root, path: "/api/v1/metrics",      token: token)
+        async let dockerTask  = fetch(APIDockerResponse.self,       base: root, path: "/api/v1/docker",       token: token)
+        async let healthTask  = fetch(APIHealthChecksResponse.self, base: root, path: "/api/v1/health-checks",token: token)
+        async let logTask     = fetchOptional(APILogAlertsResponse.self, base: root, path: "/api/v1/log-alerts", token: token)
 
-        let status = try await statusTask
+        let status  = try await statusTask
         let metrics = try await metricsTask
-        let docker = try await dockerTask
-        let health = try await healthTask
+        let docker  = try await dockerTask
+        let health  = try await healthTask
+        let logAlerts = await logTask
 
-        return mapSnapshot(status: status, metrics: metrics, docker: docker, health: health)
+        return mapSnapshot(status: status, metrics: metrics, docker: docker, health: health, logAlerts: logAlerts)
     }
 
     public func fetchMetricsHistory(baseURL: String, token: String) async throws -> APIMetricsHistoryResponse {
         let root = try normalizedBaseURL(baseURL)
         return try await fetch(APIMetricsHistoryResponse.self, base: root, path: "/api/v1/metrics/history", token: token)
+    }
+
+    /// 404 등 실패해도 nil 반환 (하위 호환)
+    private func fetchOptional<T: Decodable>(_ type: T.Type, base: URL, path: String, token: String) async -> T? {
+        try? await fetch(type, base: base, path: path, token: token)
     }
 
     private func normalizedBaseURL(_ baseURL: String) throws -> URL {
@@ -131,7 +138,8 @@ public final class RemoteMonitoringClient: @unchecked Sendable {
         status: APIStatusResponse,
         metrics: APIMetricsResponse,
         docker: APIDockerResponse,
-        health: APIHealthChecksResponse
+        health: APIHealthChecksResponse,
+        logAlerts: APILogAlertsResponse?
     ) -> ServerStatusSnapshot {
         let overall = OverallStatus(rawValue: status.overall) ?? .healthy
 
@@ -171,11 +179,23 @@ public final class RemoteMonitoringClient: @unchecked Sendable {
             )
         }
 
+        let mappedLogAlerts = logAlerts?.alerts.compactMap { item -> LogAlert? in
+            guard let level = LogAlert.LogAlertLevel(rawValue: item.level) else { return nil }
+            return LogAlert(
+                id: UUID(uuidString: item.id) ?? UUID(),
+                container: item.container,
+                level: level,
+                message: item.message,
+                detectedAt: item.detectedAt
+            )
+        } ?? []
+
         return ServerStatusSnapshot(
             overall: overall,
             metrics: systemMetrics,
             docker: dockerSnapshot,
             healthChecks: healthChecks,
+            logAlerts: mappedLogAlerts,
             updatedAt: status.updatedAt
         )
     }

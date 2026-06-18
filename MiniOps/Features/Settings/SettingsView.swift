@@ -236,6 +236,7 @@ struct SettingsView: View {
                     }
                 Toggle("경고 알림", isOn: $preferences.notifyOnWarning)
                 Toggle("장애 알림", isOn: $preferences.notifyOnCritical)
+                Toggle("Docker 로그 에러/경고 감지", isOn: $preferences.notifyOnLogErrors)
             }
 
             Section("임계치 (%)") {

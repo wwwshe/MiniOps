@@ -26,9 +26,13 @@ public final class MonitoringService {
 
     private var pollingTask: Task<Void, Never>?
     private var dockerTask: Task<Void, Never>?
+    private var logWatcherTask: Task<Void, Never>?
     private var healthCheckTasks: [UUID: Task<Void, Never>] = [:]
     private var healthCheckResults: [UUID: HealthCheckResult] = [:]
     private var remotePollCount = 0
+    private let logWatcher = DockerLogWatcher()
+    private var recentLogAlerts: [LogAlert] = []
+    private static let maxLogAlerts = 50
 
     public var displaySourceName: String {
         if settings.isClientMode {
@@ -74,10 +78,12 @@ public final class MonitoringService {
     public func stop() {
         pollingTask?.cancel()
         dockerTask?.cancel()
+        logWatcherTask?.cancel()
         healthCheckTasks.values.forEach { $0.cancel() }
         healthCheckTasks.removeAll()
         pollingTask = nil
         dockerTask = nil
+        logWatcherTask = nil
     }
 
     public func restart() {
@@ -219,6 +225,13 @@ public final class MonitoringService {
             }
         }
 
+        logWatcherTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.scanLogs()
+                try? await Task.sleep(for: .seconds(30))
+            }
+        }
+
         restartHealthChecks()
     }
 
@@ -261,11 +274,22 @@ public final class MonitoringService {
         rebuildLocalSnapshot()
     }
 
+    private func scanLogs() async {
+        guard settings.isAgentMode else { return }
+        let containers = snapshot.docker.containers
+        guard !containers.isEmpty else { return }
+        let newAlerts = await logWatcher.scan(containers: containers, dockerPath: settings.dockerPath)
+        guard !newAlerts.isEmpty else { return }
+        recentLogAlerts = Array((newAlerts + recentLogAlerts).prefix(Self.maxLogAlerts))
+        snapshot.logAlerts = recentLogAlerts
+        snapshot.updatedAt = Date()
+    }
+
     private func rebuildLocalSnapshot() {
         snapshot.healthChecks = settings.healthCheckTargets.compactMap { target in
             healthCheckResults[target.id] ?? HealthCheckResult.initial(for: target)
         }
-
+        snapshot.logAlerts = recentLogAlerts
         snapshot.overall = computeOverallStatus()
         snapshot.updatedAt = Date()
     }

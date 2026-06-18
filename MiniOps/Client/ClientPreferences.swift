@@ -24,6 +24,10 @@ final class ClientPreferences {
         didSet { defaults.set(notifyOnCritical, forKey: Keys.notifyOnCritical) }
     }
 
+    var notifyOnLogErrors: Bool {
+        didSet { defaults.set(notifyOnLogErrors, forKey: Keys.notifyOnLogErrors) }
+    }
+
     var cpuThreshold: Double {
         didSet { defaults.set(cpuThreshold, forKey: Keys.cpuThreshold) }
     }
@@ -41,6 +45,7 @@ final class ClientPreferences {
         static let notificationsEnabled = "client.notificationsEnabled"
         static let notifyOnWarning = "client.notifyOnWarning"
         static let notifyOnCritical = "client.notifyOnCritical"
+        static let notifyOnLogErrors = "client.notifyOnLogErrors"
         static let cpuThreshold = "client.cpuThreshold"
         static let memoryThreshold = "client.memoryThreshold"
         static let diskThreshold = "client.diskThreshold"
@@ -51,6 +56,7 @@ final class ClientPreferences {
         notificationsEnabled = defaults.object(forKey: Keys.notificationsEnabled) as? Bool ?? true
         notifyOnWarning = defaults.object(forKey: Keys.notifyOnWarning) as? Bool ?? true
         notifyOnCritical = defaults.object(forKey: Keys.notifyOnCritical) as? Bool ?? true
+        notifyOnLogErrors = defaults.object(forKey: Keys.notifyOnLogErrors) as? Bool ?? true
         cpuThreshold = defaults.object(forKey: Keys.cpuThreshold) as? Double ?? 85
         memoryThreshold = defaults.object(forKey: Keys.memoryThreshold) as? Double ?? 90
         diskThreshold = defaults.object(forKey: Keys.diskThreshold) as? Double ?? 95

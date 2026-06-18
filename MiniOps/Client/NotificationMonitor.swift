@@ -11,6 +11,7 @@ final class NotificationMonitor {
     private var lastConnectionError: String?
     private var notifiedStoppedContainers: Set<String> = []
     private var notifiedUnhealthyChecks: Set<String> = []
+    private var lastNotifiedLogAlertDate: Date = .distantPast
     private var wasCpuHigh = false
     private var wasMemoryHigh = false
     private var wasDiskHigh = false
@@ -81,6 +82,19 @@ final class NotificationMonitor {
             post(title: "Health Check 실패", body: "\(name) 응답에 실패했습니다.")
         }
         notifiedUnhealthyChecks = unhealthy
+
+        if preferences.notifyOnLogErrors {
+            let newAlerts = snapshot.logAlerts.filter { $0.detectedAt > lastNotifiedLogAlertDate }
+            if !newAlerts.isEmpty {
+                let errorCount = newAlerts.filter { $0.level == .error }.count
+                let warnCount  = newAlerts.filter { $0.level == .warn  }.count
+                var parts: [String] = []
+                if errorCount > 0 { parts.append("에러 \(errorCount)건") }
+                if warnCount  > 0 { parts.append("경고 \(warnCount)건") }
+                post(title: "Docker 로그 이상 감지", body: parts.joined(separator: ", "))
+                lastNotifiedLogAlertDate = newAlerts.map(\.detectedAt).max() ?? Date()
+            }
+        }
     }
 
     private func post(title: String, body: String) {

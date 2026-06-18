@@ -51,6 +51,8 @@ public final class APIRouter {
             return .json(makeHealthCheckTargetsResponse())
         case "/api/v1/settings":
             return .json(makeSettingsResponse())
+        case "/api/v1/log-alerts":
+            return .json(makeLogAlertsResponse())
         default:
             if request.path.hasPrefix("/api/v1/docker/") && request.path.hasSuffix("/logs") {
                 return await fetchDockerLogs(request: request, path: request.path)
@@ -248,6 +250,19 @@ public final class APIRouter {
             timeoutSeconds: item.timeoutSeconds,
             expectedStatusCode: item.expectedStatusCode
         )
+    }
+
+    private func makeLogAlertsResponse() -> APILogAlertsResponse {
+        let alerts = monitoringService.snapshot.logAlerts.map { alert in
+            APILogAlertItem(
+                id: alert.id.uuidString,
+                container: alert.container,
+                level: alert.level.rawValue,
+                message: alert.message,
+                detectedAt: alert.detectedAt
+            )
+        }
+        return APILogAlertsResponse(alerts: alerts)
     }
 
     private func makeStatusResponse() -> APIStatusResponse {
@@ -462,4 +477,16 @@ public struct APISettingsResponse: Codable, Sendable {
 
 public struct APISettingsPatch: Codable, Sendable {
     public let dockerPath: String?
+}
+
+public struct APILogAlertItem: Codable, Sendable {
+    public let id: String
+    public let container: String
+    public let level: String
+    public let message: String
+    public let detectedAt: Date
+}
+
+public struct APILogAlertsResponse: Codable, Sendable {
+    public let alerts: [APILogAlertItem]
 }
