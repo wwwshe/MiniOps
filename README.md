@@ -87,8 +87,6 @@ MiniOps/
 | v0.5 | 대시보드 화면 추가 |
 | v1.0 | brew 및 mac release 배포 |
 | **v1.0.1** | **mac 앱 로그인 시 자동 실행 추가** |
-| v1.1 | Slack / Discord 알림 |
-| v1.2 | iOS/iPad 조회 앱 (선택) |
 
 ## 라이선스
 
